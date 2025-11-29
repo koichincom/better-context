@@ -9,7 +9,10 @@ class OcError extends TaggedError("OcError")<{
 
 const ocService = Effect.gen(function* () {
   const { client, server } = yield* Effect.tryPromise({
-    try: () => createOpencode(),
+    try: () =>
+      createOpencode({
+        port: 3420,
+      }),
     catch: (err) =>
       new OcError({ message: "FAILED TO CREATE OPENCODE CLIENT", cause: err }),
   });
