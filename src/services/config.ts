@@ -53,8 +53,8 @@ const DEFAULT_CONFIG: Config = {
       branch: "canary",
     },
   ],
-  model: "claude-haiku-4-5",
-  provider: "anthropic",
+  model: "grok-code",
+  provider: "opencode",
 };
 
 const OPENCODE_CONFIG = (args: {
@@ -71,8 +71,10 @@ const OPENCODE_CONFIG = (args: {
     plan: {
       disable: true,
     },
+    ask: {
+      disable: true,
+    },
     docs: {
-      // prompt: `{file:${args.promptPath}}`,
       prompt: getDocsAgentPrompt({
         repoName: args.repoName,
         repoPath: path.join(args.config.reposDirectory, args.repoName),
@@ -131,7 +133,6 @@ const onStartLoadConfig = Effect.gen(function* () {
       reposDirectory: expandHome(DEFAULT_CONFIG.reposDirectory),
     } satisfies Config;
   } else {
-    yield* Effect.log(`Loading config from ${configPath}...`);
     return yield* Effect.tryPromise({
       try: () => configFile.json(),
       catch: (error) =>

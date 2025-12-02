@@ -9,13 +9,14 @@ export const cloneRepo = (args: {
   Effect.tryPromise({
     try: async () => {
       const { repoDir, url, branch } = args;
-      const proc = Bun.spawn(
-        ["git", "clone", "--branch", branch, url, repoDir],
-        {
-          stdout: "inherit",
-          stderr: "inherit",
-        }
-      );
+      const proc = Bun.spawn([
+        "git",
+        "clone",
+        "--branch",
+        branch,
+        url,
+        repoDir,
+      ]);
       const exitCode = await proc.exited;
       if (exitCode !== 0) {
         throw new Error(`git clone failed with exit code ${exitCode}`);
@@ -31,8 +32,6 @@ export const pullRepo = (args: { repoDir: string; branch: string }) =>
       const { repoDir, branch } = args;
       const proc = Bun.spawn(["git", "pull", "origin", branch], {
         cwd: repoDir,
-        stdout: "inherit",
-        stderr: "inherit",
       });
       const exitCode = await proc.exited;
       if (exitCode !== 0) {

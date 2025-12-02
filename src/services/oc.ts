@@ -1,5 +1,5 @@
 import { createOpencode, OpencodeClient, type Event } from "@opencode-ai/sdk";
-import { Deferred, Effect, Stream } from "effect";
+import { Deferred, Duration, Effect, Stream } from "effect";
 import { ConfigService } from "./config.ts";
 import { OcError } from "../lib/errors.ts";
 
@@ -15,7 +15,7 @@ const ocService = Effect.gen(function* () {
       let portOffset = 0;
       const maxInstances = 5;
       const configObject = yield* config.getOpenCodeConfig({ repoName: tech });
-      yield* Effect.log(`OPENCODE CONFIG: ${JSON.stringify(configObject)}`);
+
       while (portOffset < maxInstances) {
         const result = yield* Effect.tryPromise(() =>
           createOpencode({
@@ -153,6 +153,16 @@ const ocService = Effect.gen(function* () {
     });
 
   return {
+    holdOpenInstanceInBg: () =>
+      Effect.gen(function* () {
+        const { client, server } = yield* getOpencodeInstance({
+          tech: "svelte",
+        });
+
+        yield* Effect.log(`OPENCODE SERVER IS UP AT ${server.url}`);
+
+        yield* Effect.sleep(Duration.days(1));
+      }),
     askQuestion: (args: { question: string; tech: string }) =>
       Effect.gen(function* () {
         const { question, tech } = args;
@@ -160,8 +170,6 @@ const ocService = Effect.gen(function* () {
         yield* config.cloneOrUpdateOneRepoLocally(tech);
 
         const { client, server } = yield* getOpencodeInstance({ tech });
-
-        yield* Effect.log(`OPENCODE SERVER IS UP AT ${server.url}`);
 
         const session = yield* Effect.promise(() => client.session.create());
 
@@ -175,14 +183,12 @@ const ocService = Effect.gen(function* () {
         }
 
         const sessionID = session.data.id;
-        yield* Effect.log(`PROMPTING WITH: ${prompt}`);
 
         return yield* streamPrompt({
           sessionID,
           prompt: question,
           client,
           cleanup: () => {
-            console.log("CLOSING OPENCODE SESSION");
             server.close();
           },
         });

@@ -11,14 +11,22 @@ import { OcService, type OcEvent } from "./services/oc.ts";
 
 const programLayer = Layer.mergeAll(OcService.Default);
 
+type DisplayMessage = {
+  id: string;
+  text: string;
+};
+
 // TODO: setup really good outputs for the cli to give to agents...
 const logEvent = (event: OcEvent) => {
   switch (event.type) {
     case "message.updated":
-      console.log(event.properties.info);
+      // console.log(event.properties.info);
       break;
     case "message.part.updated":
-      console.log(event.properties.part);
+      if (event.properties.part.type === "text") {
+        // console.log(event.properties.part.text + "\n");
+        console.log(event.properties.delta + event.properties.part.messageID);
+      }
       break;
     default:
       break;
@@ -37,12 +45,41 @@ const askCommand = Command.make(
       const oc = yield* OcService;
       const eventStream = yield* oc.askQuestion({ tech, question });
 
+      const displayMessages: DisplayMessage[] = [];
+
+      let currentMessageId: string | null = null;
+
       yield* eventStream.pipe(
-        Stream.runForEach((event) => Effect.sync(() => logEvent(event)))
+        Stream.runForEach((event) =>
+          Effect.sync(() => {
+            switch (event.type) {
+              case "message.part.updated":
+                if (event.properties.part.type === "text") {
+                  if (currentMessageId === event.properties.part.messageID) {
+                    process.stdout.write(event.properties.delta ?? "");
+                  } else {
+                    currentMessageId = event.properties.part.messageID;
+                    process.stdout.write("\n\n" + event.properties.part.text);
+                  }
+                }
+                break;
+              default:
+                break;
+            }
+          })
+        )
       );
 
       console.log("\n");
+      displayMessages.forEach((m) => console.log(m.text, "\n", m.id));
     }).pipe(Effect.provide(programLayer))
+);
+
+const openCommand = Command.make("open", {}, () =>
+  Effect.gen(function* () {
+    const oc = yield* OcService;
+    yield* oc.holdOpenInstanceInBg();
+  }).pipe(Effect.provide(programLayer))
 );
 
 // === Serve Subcommand ===
@@ -106,7 +143,7 @@ const serveCommand = Command.make("serve", { port: portOption }, ({ port }) =>
 
 // === Main Command ===
 const mainCommand = Command.make("btca", {}).pipe(
-  Command.withSubcommands([askCommand, serveCommand])
+  Command.withSubcommands([askCommand, serveCommand, openCommand])
 );
 
 const cli = Command.run(mainCommand, {
