@@ -14,9 +14,9 @@
     },
     "apps/cli": {
       "name": "btca",
-      "version": "0.5.2",
+      "version": "0.5.4",
       "bin": {
-        "btca": "./bin.js",
+        "btca": "bin.js",
       },
       "devDependencies": {
         "@btca/shared": "workspace:*",
@@ -35,6 +35,13 @@
         "effect": "^3.19.8",
         "react": "^19.2.3",
         "typescript": "^5.9.3",
+      },
+      "optionalDependencies": {
+        "@btca/darwin-arm64": "0.5.4",
+        "@btca/darwin-x64": "0.5.4",
+        "@btca/linux-arm64": "0.5.4",
+        "@btca/linux-x64": "0.5.4",
+        "@btca/windows-x64": "0.5.4",
       },
     },
     "apps/web": {
