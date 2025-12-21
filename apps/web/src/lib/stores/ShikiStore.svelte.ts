@@ -1,13 +1,19 @@
 import { createContext, onDestroy, onMount } from 'svelte';
-import { createHighlighter, type Highlighter } from 'shiki/bundle/web';
+import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
+import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
+import darkPlus from '@shikijs/themes/dark-plus';
+import lightPlus from '@shikijs/themes/light-plus';
+import json from '@shikijs/langs/json';
+import bash from '@shikijs/langs/bash';
 
 class ShikiStore {
-	private highlighterPromise = createHighlighter({
-		themes: ['dark-plus', "light-plus"],
-		langs: ['bash', 'json']
+	private highlighterPromise = createHighlighterCore({
+		langs: [bash, json],
+		themes: [darkPlus, lightPlus],
+		engine: createOnigurumaEngine(import('shiki/wasm'))
 	});
 
-	highlighter = $state<Highlighter | null>(null);
+	highlighter = $state<HighlighterCore | null>(null);
 
 	constructor() {
 		onMount(async () => {
