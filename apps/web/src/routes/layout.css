@@ -5,14 +5,14 @@
 
 @font-face {
 	font-family: 'GeistMono';
-	src: url('/GeistMono[wght].ttf') format('truetype-variations');
+	src: url('/GeistMono[wght].woff2') format('woff2');
 	font-weight: 100 900;
 	font-style: normal;
 }
 
 @font-face {
 	font-family: 'Geist';
-	src: url('/Geist[wght].ttf') format('truetype-variations');
+	src: url('/Geist[wght].woff2') format('woff2');
 	font-weight: 100 900;
 	font-style: normal;
 }
@@ -43,6 +43,7 @@
 	pre.shiki,
 	pre.shiki code {
 		font-family: var(--font-family-geist-mono);
+		font-size: 16px;
 	}
 
 	body {
