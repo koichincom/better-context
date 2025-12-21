@@ -1,6 +1,6 @@
 import { Show, type Component } from 'solid-js';
 import { colors } from '../theme.ts';
-import { useKeyboard } from '@opentui/solid';
+import { useKeyboard, usePaste } from '@opentui/solid';
 import { useAppContext, type WizardStep } from '../context/app-context.tsx';
 import { services } from '../services.ts';
 import type { Repo } from '../types.ts';
@@ -37,6 +37,10 @@ export const AddRepoWizard: Component = () => {
 	const appState = useAppContext();
 
 	const info = () => STEP_INFO[appState.wizardStep()];
+
+	usePaste(({ text }) => {
+		appState.setWizardInput(text);
+	});
 
 	const handleSubmit = async () => {
 		const step = appState.wizardStep();

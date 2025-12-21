@@ -156,7 +156,9 @@ export const AppProvider: Component<ParentProps> = (props) => {
 			const items = inputStore();
 			let minIdx = 0;
 			for (const item of items) {
-				const maxIdx = minIdx + item.content.length;
+				const displayLen =
+					item.type === 'pasted' ? `[~${item.lines} lines]`.length : item.content.length;
+				const maxIdx = minIdx + displayLen;
 				if (cursorPosition() >= minIdx && cursorPosition() <= maxIdx) return item.type;
 				minIdx = maxIdx;
 			}

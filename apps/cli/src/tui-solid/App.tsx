@@ -1,4 +1,4 @@
-import { createSignal, type Component } from 'solid-js';
+import { createEffect, createSignal, type Component } from 'solid-js';
 import type { ParentProps } from 'solid-js';
 import { AppProvider } from './context/app-context';
 import { render, useKeyboard, useRenderer } from '@opentui/solid';
@@ -40,8 +40,13 @@ const App: Component = () => {
 			.join('');
 	};
 
+	createEffect(() => {
+		console.log('CURSOR', appState.cursorIsCurrentlyIn());
+	});
+
 	const handleChatSubmit = async () => {
 		const inputText = getInputText().trim();
+		console.log('INPUT TEXT', inputText);
 		if (!inputText) return;
 
 		// If showing palettes, let them handle the return key
@@ -49,10 +54,14 @@ const App: Component = () => {
 			appState.cursorIsCurrentlyIn() === 'command' ||
 			appState.cursorIsCurrentlyIn() === 'mention'
 		) {
+			console.log('SKIPPING');
 			return;
 		}
 
-		if (appState.isLoading()) return;
+		if (appState.isLoading()) {
+			console.log('SKIPPING LOADING');
+			return;
+		}
 
 		const mention = parseAtMention(inputText);
 		if (!mention || !mention.question.trim()) {
@@ -160,7 +169,7 @@ const App: Component = () => {
 		if (
 			key.name === 'return' &&
 			appState.mode() === 'chat' &&
-			appState.cursorIsCurrentlyIn() === 'text'
+			(appState.cursorIsCurrentlyIn() === 'text' || appState.cursorIsCurrentlyIn() === 'pasted')
 		) {
 			handleChatSubmit();
 			return;

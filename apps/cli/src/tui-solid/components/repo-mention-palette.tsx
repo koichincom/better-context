@@ -10,6 +10,9 @@ export const RepoMentionPalette: Component = () => {
 
 	const maxVisible = 8;
 
+	const getDisplayLength = (item: ReturnType<typeof appState.inputState>[number]) =>
+		item.type === 'pasted' ? `[~${item.lines} lines]`.length : item.content.length;
+
 	const curInputIdx = () => {
 		const inputRef = appState.inputRef();
 		if (!inputRef) return 0;
@@ -19,7 +22,7 @@ export const RepoMentionPalette: Component = () => {
 		const curInputState = appState.inputState();
 		while (curIdx < curInputState.length) {
 			const curItem = curInputState[curIdx]!;
-			const maxIdx = totalLength + curItem.content.length;
+			const maxIdx = totalLength + getDisplayLength(curItem);
 			if (currentInputIndex >= totalLength && currentInputIndex <= maxIdx) {
 				break;
 			}
@@ -64,7 +67,7 @@ export const RepoMentionPalette: Component = () => {
 			if (inputRef) {
 				let newCursorPos = 0;
 				for (let i = 0; i <= idx; i++) {
-					newCursorPos += i === idx ? newContent.length : currentState[i]!.content.length;
+					newCursorPos += i === idx ? newContent.length : getDisplayLength(currentState[i]!);
 				}
 				inputRef.cursorPosition = newCursorPos;
 			}

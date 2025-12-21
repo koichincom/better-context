@@ -1,4 +1,5 @@
-import { For, Show, type Component } from 'solid-js';
+import { createEffect, For, Show, type Component } from 'solid-js';
+import type { KeyEvent } from '@opentui/core';
 import { colors, getColor } from '../theme';
 import { useAppContext } from '../context/app-context';
 import { usePaste } from '@opentui/solid';
@@ -6,28 +7,38 @@ import { usePaste } from '@opentui/solid';
 export const MainInput: Component = () => {
 	const appState = useAppContext();
 
+	const getPasteDisplay = (lines: number) => `[~${lines} lines]`;
+
 	const getValue = () =>
 		appState
 			.inputState()
-			.map((p) => {
-				if (p.type === 'pasted') {
-					return `pasted ${p.lines} lines`;
-				} else {
-					return p.content;
-				}
-			})
+			.map((p) => (p.type === 'pasted' ? getPasteDisplay(p.lines) : p.content))
 			.join('');
 
 	const isEmpty = () => getValue().length === 0;
+
+	const getPartValueLength = (p: ReturnType<typeof appState.inputState>[number]) =>
+		p.type === 'pasted' ? getPasteDisplay(p.lines).length : p.content.length;
 
 	usePaste((text) => {
 		const curInput = appState.inputState();
 		const lines = text.text.split('\n').length;
 		const newInput = [...curInput, { type: 'pasted' as const, content: text.text, lines }];
 		appState.setInputState(newInput);
+
+		queueMicrotask(() => {
+			const inputRef = appState.inputRef();
+			if (inputRef) {
+				const newCursorPos = newInput.reduce((acc, p) => acc + getPartValueLength(p), 0);
+				inputRef.cursorPosition = newCursorPos;
+				appState.setCursorPosition(newCursorPos);
+			}
+		});
 	});
 
-	function parseInputValue(value: string): ReturnType<typeof appState.inputState> {
+	function parseTextSegment(
+		value: string
+	): { type: 'text' | 'command' | 'mention'; content: string }[] {
 		if (!value) return [];
 		const parts: { type: 'text' | 'command' | 'mention'; content: string }[] = [];
 
@@ -57,6 +68,41 @@ export const MainInput: Component = () => {
 			parts.push({ type: 'text', content: value.slice(lastIndex) });
 		}
 		return parts;
+	}
+
+	function handleInputChange(newValue: string): ReturnType<typeof appState.inputState> {
+		const currentParts = appState.inputState();
+		const pastedBlocks = currentParts.filter((p) => p.type === 'pasted');
+
+		if (pastedBlocks.length === 0) {
+			return parseTextSegment(newValue);
+		}
+
+		const result: ReturnType<typeof appState.inputState> = [];
+		let remaining = newValue;
+
+		for (let i = 0; i < pastedBlocks.length; i++) {
+			const block = pastedBlocks[i]!;
+			const display = getPasteDisplay(block.lines);
+			const idx = remaining.indexOf(display);
+
+			if (idx === -1) {
+				continue;
+			}
+
+			const before = remaining.slice(0, idx);
+			if (before) {
+				result.push(...parseTextSegment(before));
+			}
+			result.push(block);
+			remaining = remaining.slice(idx + display.length);
+		}
+
+		if (remaining) {
+			result.push(...parseTextSegment(remaining));
+		}
+
+		return result;
 	}
 
 	return (
@@ -97,10 +143,11 @@ export const MainInput: Component = () => {
 				>
 					<For each={appState.inputState()}>
 						{(part) => {
-							// console.log('part', part);
 							if (part.type === 'pasted') {
 								return (
-									<span style={{ fg: colors.textPasted }}>{`pasted ${part.lines} lines`}</span>
+									<span
+										style={{ fg: colors.bg, bg: colors.accent }}
+									>{`[~${part.lines} lines]`}</span>
 								);
 							} else {
 								return <span style={{ fg: getColor(part.type) }}>{part.content}</span>;
@@ -113,11 +160,34 @@ export const MainInput: Component = () => {
 			<input
 				id="main-input"
 				onInput={(v) => {
-					console.log('v', v);
-					const parts = parseInputValue(v);
+					const parts = handleInputChange(v);
 					appState.setInputState(parts);
 				}}
-				onKeyDown={() => {
+				onKeyDown={(event: KeyEvent) => {
+					if (event.name === 'backspace') {
+						const curPos = appState.inputRef()?.cursorPosition ?? 0;
+						const parts = appState.inputState();
+
+						let offset = 0;
+						for (let i = 0; i < parts.length; i++) {
+							const part = parts[i]!;
+							const valueLen = getPartValueLength(part);
+
+							if (curPos <= offset + valueLen) {
+								if (part.type === 'pasted') {
+									event.preventDefault();
+									const newParts = [...parts.slice(0, i), ...parts.slice(i + 1)];
+									appState.setInputState(newParts);
+									const inputRef = appState.inputRef();
+									if (inputRef) inputRef.cursorPosition = offset;
+									appState.setCursorPosition(offset);
+									return;
+								}
+								break;
+							}
+							offset += valueLen;
+						}
+					}
 					queueMicrotask(() => {
 						const inputRef = appState.inputRef();
 						if (!inputRef) return;
