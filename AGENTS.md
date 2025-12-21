@@ -41,4 +41,4 @@ Run:
 
 - btca ask -t <tech> -q "<question>"
 
-Available <tech>: svelte, tailwindcss, opentui, runed, effect
+Available <tech>: svelte, tailwindcss, opentui, runed, effect, shiki
