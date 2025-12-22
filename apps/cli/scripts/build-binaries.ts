@@ -48,14 +48,16 @@ const main = Effect.gen(function* () {
 			Bun.build({
 				entrypoints: ['src/index.ts'],
 				target: 'bun',
-				outdir: './build',
 				plugins: [solidPlugin],
 				define: {
 					__VERSION__: JSON.stringify(VERSION)
 				},
 				compile: {
 					target,
-					outfile
+					outfile,
+					// Disable bunfig.toml autoloading - the solidPlugin already transforms JSX at build time
+					// and we don't want the binary to pick up bunfig.toml from the cwd
+					autoloadBunfig: false
 				}
 			})
 		);
