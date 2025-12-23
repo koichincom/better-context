@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onCleanup, type Component } from 'solid-js';
 import { useAppContext } from '../context/app-context';
 import { colors, getColor } from '../theme';
-import { RGBA, SyntaxStyle } from '@opentui/core';
+import { MarkdownText } from './markdown-text.tsx';
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -19,52 +19,6 @@ const LoadingSpinner: Component = () => {
 
 export const Messages: Component = () => {
 	const appState = useAppContext();
-
-	const syntaxStyle = SyntaxStyle.fromStyles({
-		// Headings
-		'markup.heading.1': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading.2': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading.3': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading.4': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading.5': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading.6': { fg: RGBA.fromHex(colors.accent), bold: true },
-		'markup.heading': { fg: RGBA.fromHex(colors.accent), bold: true },
-
-		// Text formatting
-		'markup.bold': { fg: RGBA.fromHex(colors.text), bold: true },
-		'markup.italic': { fg: RGBA.fromHex(colors.text), italic: true },
-		'markup.strikethrough': { fg: RGBA.fromHex(colors.textMuted) },
-
-		// Code
-		'markup.raw': { fg: RGBA.fromHex(colors.success) },
-		'markup.raw.inline': { fg: RGBA.fromHex(colors.success) },
-		'markup.raw.block': { fg: RGBA.fromHex(colors.success) },
-		fenced_code_block: { fg: RGBA.fromHex(colors.success) },
-		code_fence_content: { fg: RGBA.fromHex(colors.text) },
-
-		// Links
-		'markup.link': { fg: RGBA.fromHex(colors.info), underline: true },
-		'markup.link.url': { fg: RGBA.fromHex(colors.info), underline: true },
-		'markup.link.text': { fg: RGBA.fromHex(colors.info) },
-		'string.other.link': { fg: RGBA.fromHex(colors.info), underline: true },
-
-		// Lists
-		'markup.list': { fg: RGBA.fromHex(colors.text) },
-		'markup.list.unnumbered': { fg: RGBA.fromHex(colors.text) },
-		'markup.list.numbered': { fg: RGBA.fromHex(colors.text) },
-		'punctuation.definition.list': { fg: RGBA.fromHex(colors.accent) },
-
-		// Quotes
-		'markup.quote': { fg: RGBA.fromHex(colors.textMuted), italic: true },
-
-		// Punctuation (markdown symbols like #, *, etc.)
-		'punctuation.definition.heading': { fg: RGBA.fromHex(colors.textSubtle) },
-		'punctuation.definition.bold': { fg: RGBA.fromHex(colors.textSubtle) },
-		'punctuation.definition.italic': { fg: RGBA.fromHex(colors.textSubtle) },
-
-		// Default
-		default: { fg: RGBA.fromHex(colors.text) }
-	});
 
 	return (
 		<scrollbox
@@ -126,7 +80,7 @@ export const Messages: Component = () => {
 									</Show>
 								</box>
 								<Show when={!isStreaming()} fallback={<text>{m.content}</text>}>
-									<code filetype="markdown" content={m.content} syntaxStyle={syntaxStyle} />
+									<MarkdownText content={m.content} />
 								</Show>
 							</box>
 						);
