@@ -1,6 +1,6 @@
 import { FileSystem } from '@effect/platform';
 import { Effect } from 'effect';
-import type { GitResource, ResourceInfo } from '../types.ts';
+import type { GitResource } from '../types.ts';
 import { ResourceError } from '../errors.ts';
 import { directoryExists } from '../../../lib/utils/files.ts';
 
@@ -15,13 +15,11 @@ export const cloneWithDegit = (args: {
 	Effect.tryPromise({
 		try: async () => {
 			const { repoDir, url, branch, searchPath, quiet } = args;
-			const proc = Bun.spawn(
-				['bunx', 'degit', `${url}/${searchPath}#${branch}`, repoDir, '--force'],
-				{
-					stdout: quiet ? 'ignore' : 'inherit',
-					stderr: quiet ? 'ignore' : 'inherit'
-				}
-			);
+			const source = searchPath ? `${url}/${searchPath}#${branch}` : `${url}#${branch}`;
+			const proc = Bun.spawn(['bunx', 'degit', source, repoDir, '--force'], {
+				stdout: quiet ? 'ignore' : 'inherit',
+				stderr: quiet ? 'ignore' : 'inherit'
+			});
 			const exitCode = await proc.exited;
 			if (exitCode !== 0) {
 				throw new Error(`Failed to clone repo with degit: ${exitCode}`);
@@ -32,89 +30,17 @@ export const cloneWithDegit = (args: {
 	});
 
 /**
- * Clone a git repository
- */
-export const cloneRepo = (args: {
-	repoDir: string;
-	url: string;
-	branch: string;
-	quiet?: boolean;
-}) =>
-	Effect.tryPromise({
-		try: async () => {
-			const { repoDir, url, branch, quiet } = args;
-			const proc = Bun.spawn(['git', 'clone', '--depth', '1', '--branch', branch, url, repoDir], {
-				stdout: quiet ? 'ignore' : 'inherit',
-				stderr: quiet ? 'ignore' : 'inherit'
-			});
-			const exitCode = await proc.exited;
-			if (exitCode !== 0) {
-				throw new Error(`git clone failed with exit code ${exitCode}`);
-			}
-		},
-		catch: (error) => new ResourceError({ message: 'Failed to clone repo', cause: error })
-	});
-
-/**
- * Pull latest changes for a git repository
- */
-export const pullRepo = (args: { repoDir: string; branch: string; quiet?: boolean }) =>
-	Effect.tryPromise({
-		try: async () => {
-			const { repoDir, branch, quiet } = args;
-
-			// Fetch latest
-			const fetchProc = Bun.spawn(['git', 'fetch', '--depth', '1', 'origin', branch], {
-				cwd: repoDir,
-				stdout: quiet ? 'ignore' : 'inherit',
-				stderr: quiet ? 'ignore' : 'inherit'
-			});
-			const fetchExitCode = await fetchProc.exited;
-			if (fetchExitCode !== 0) {
-				throw new Error(`git fetch failed with exit code ${fetchExitCode}`);
-			}
-
-			// Reset to fetched state
-			const resetProc = Bun.spawn(['git', 'reset', '--hard', `origin/${branch}`], {
-				cwd: repoDir,
-				stdout: quiet ? 'ignore' : 'inherit',
-				stderr: quiet ? 'ignore' : 'inherit'
-			});
-			const resetExitCode = await resetProc.exited;
-			if (resetExitCode !== 0) {
-				throw new Error(`git reset failed with exit code ${resetExitCode}`);
-			}
-		},
-		catch: (error) => new ResourceError({ message: 'Failed to pull repo', cause: error })
-	});
-
-/**
- * Ensure a git resource is cached locally.
- * Clones if not present, optionally pulls if already present.
+ * Ensure a git resource is cached locally using degit.
+ * Always does a fresh clone (degit uses --force).
  */
 export const ensureGitResource = (args: {
 	resource: GitResource;
 	resourcesDir: string;
-	refresh?: boolean;
 	quiet?: boolean;
 }) =>
 	Effect.gen(function* () {
-		const { resource, resourcesDir, refresh = false, quiet = false } = args;
+		const { resource, resourcesDir, quiet = false } = args;
 		const repoDir = `${resourcesDir}/${resource.name}`;
-
-		// const exists = yield* directoryExists(repoDir).pipe(
-		// 	Effect.mapError((e) => new ResourceError({ message: e.message, cause: e }))
-		// );
-
-		// if (exists) {
-		// 	if (refresh) {
-		// 		if (!quiet) yield* Effect.log(`Pulling latest changes for ${resource.name}...`);
-		// 		yield* pullRepo({ repoDir, branch: resource.branch, quiet });
-		// 	}
-		// } else {
-		// 	if (!quiet) yield* Effect.log(`Cloning ${resource.name}...`);
-		// 	yield* cloneRepo({ repoDir, url: resource.url, branch: resource.branch, quiet });
-		// }
 
 		yield* cloneWithDegit({
 			repoDir,

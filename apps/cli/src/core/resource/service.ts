@@ -60,7 +60,6 @@ const createResourceService = (config: ResourceServiceConfig) =>
 						return yield* ensureGitResource({
 							resource,
 							resourcesDir,
-							refresh,
 							quiet
 						});
 					} else if (isLocalResource(resource)) {
@@ -96,7 +95,6 @@ const createResourceService = (config: ResourceServiceConfig) =>
 						return yield* ensureGitResource({
 							resource,
 							resourcesDir,
-							refresh: true,
 							quiet
 						});
 					} else if (isLocalResource(resource)) {
