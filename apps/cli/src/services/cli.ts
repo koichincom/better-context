@@ -10,6 +10,7 @@ import {
 } from '../core/index.ts';
 import type { ResourceDefinition, GitResource, LocalResource } from '../core/resource/types.ts';
 import { isGitResource } from '../core/resource/types.ts';
+import { removeDirectory } from '../lib/utils/files.ts';
 
 declare const __VERSION__: string;
 const VERSION: string = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.0-dev';
@@ -629,6 +630,70 @@ const configCollectionsCommand = Command.make('collections', {}, () =>
 	})
 ).pipe(Command.withSubcommands([configCollectionsListCommand, configCollectionsClearCommand]));
 
+// === Clear Commands ===
+
+const clearResourcesCommand = Command.make('resources', {}, () =>
+	Effect.gen(function* () {
+		const services = yield* initializeCoreServices;
+		const resourcesDir = yield* services.config.getResourcesDirectory();
+
+		const confirmed = yield* askConfirmation(
+			`This will delete all cached resources in ${resourcesDir}. Continue? (y/N): `
+		);
+
+		if (!confirmed) {
+			console.log('Aborted.');
+			return;
+		}
+
+		yield* removeDirectory(resourcesDir).pipe(Effect.catchAll(() => Effect.void));
+
+		console.log('All cached resources cleared.');
+	}).pipe(Effect.provide(BunContext.layer))
+);
+
+const clearCollectionsCommand = Command.make('collections', {}, () =>
+	Effect.gen(function* () {
+		const services = yield* initializeCoreServices;
+		const collectionsDir = yield* services.config.getCollectionsDirectory();
+
+		const confirmed = yield* askConfirmation(
+			`This will delete all collections in ${collectionsDir}. Continue? (y/N): `
+		);
+
+		if (!confirmed) {
+			console.log('Aborted.');
+			return;
+		}
+
+		yield* removeDirectory(collectionsDir).pipe(Effect.catchAll(() => Effect.void));
+
+		console.log('All collections cleared.');
+	}).pipe(Effect.provide(BunContext.layer))
+);
+
+const clearAllCommand = Command.make('clear', {}, () =>
+	Effect.gen(function* () {
+		const services = yield* initializeCoreServices;
+		const resourcesDir = yield* services.config.getResourcesDirectory();
+		const collectionsDir = yield* services.config.getCollectionsDirectory();
+
+		const confirmed = yield* askConfirmation(
+			`This will delete all cached resources and collections. Continue? (y/N): `
+		);
+
+		if (!confirmed) {
+			console.log('Aborted.');
+			return;
+		}
+
+		yield* removeDirectory(resourcesDir).pipe(Effect.catchAll(() => Effect.void));
+		yield* removeDirectory(collectionsDir).pipe(Effect.catchAll(() => Effect.void));
+
+		console.log('All cached resources and collections cleared.');
+	}).pipe(Effect.provide(BunContext.layer))
+).pipe(Command.withSubcommands([clearResourcesCommand, clearCollectionsCommand]));
+
 // === Threads Subcommands ===
 
 const configThreadsListCommand = Command.make('list', {}, () =>
@@ -763,7 +828,7 @@ const mainCommand = Command.make('btca', { version: versionOption }, ({ version 
 			console.log(`btca v${VERSION}. run btca --help for more information.`);
 		}
 	})
-).pipe(Command.withSubcommands([askCommand, chatCommand, configCommand]));
+).pipe(Command.withSubcommands([askCommand, chatCommand, configCommand, clearAllCommand]));
 
 const cliService = Effect.gen(function* () {
 	return {
