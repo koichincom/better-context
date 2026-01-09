@@ -1,0 +1,17 @@
+{
+	"name": "@btca/server",
+	"version": "0.0.1",
+	"module": "index.ts",
+	"type": "module",
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"check": "tsgo --noEmit",
+		"format": "prettier --write ."
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@typescript/native-preview": "^7.0.0-dev.20251231.1"
+	}
+}
