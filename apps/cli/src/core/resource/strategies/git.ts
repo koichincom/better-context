@@ -53,6 +53,9 @@ const cloneRepo = (args: {
 }) =>
 	Effect.gen(function* () {
 		const { repoDir, url, branch, searchPath, quiet } = args;
+		const fs = yield* FileSystem.FileSystem;
+
+		yield* fs.makeDirectory(repoDir, { recursive: true });
 
 		// Validate inputs to prevent injection attacks
 		yield* validateGitUrl(url);
@@ -71,7 +74,7 @@ const cloneRepo = (args: {
 		}
 
 		yield* runGit(['fetch', '--depth', '1', 'origin', branch], { cwd: repoDir, quiet });
-		yield* runGit(['checkout', '--', branch], { cwd: repoDir, quiet });
+		yield* runGit(['checkout', branch], { cwd: repoDir, quiet });
 	});
 
 /** Pull latest changes for a git repo */
