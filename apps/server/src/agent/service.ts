@@ -241,6 +241,18 @@ const extractAnswerFromEvents = (events: readonly OcEvent[]): string => {
 };
 
 export interface AgentService {
+	readonly askStream: (args: {
+		collection: CollectionResult;
+		question: string;
+	}) => Effect.Effect<
+		{
+			stream: Stream.Stream<OcEvent, AgentError>;
+			model: { provider: string; model: string };
+		},
+		AgentError,
+		FileSystem.FileSystem
+	>;
+
 	readonly ask: (args: {
 		collection: CollectionResult;
 		question: string;
@@ -254,82 +266,86 @@ export const AgentLive = Layer.effect(
 	Effect.gen(function* () {
 		const config = yield* Config;
 
-		return {
-			ask: ({ collection, question }) =>
-				Effect.gen(function* () {
-					const ocConfig = buildOpenCodeConfig({ agentInstructions: collection.agentInstructions });
-					const { client, server } = yield* getOpencodeInstance({
-						collectionPath: collection.path,
-						ocConfig
-					});
+		const askStream: AgentService["askStream"] = ({ collection, question }) =>
+			Effect.gen(function* () {
+				const ocConfig = buildOpenCodeConfig({ agentInstructions: collection.agentInstructions });
+				const { client, server } = yield* getOpencodeInstance({
+					collectionPath: collection.path,
+					ocConfig
+				});
 
-					yield* validateProviderAndModel(client, config.provider, config.model).pipe(
-						Effect.mapError((cause) =>
-							new AgentError({ message: "Provider/model validation failed", cause })
-						)
+				yield* validateProviderAndModel(client, config.provider, config.model).pipe(
+					Effect.mapError((cause) => new AgentError({ message: "Provider/model validation failed", cause }))
+				);
+
+				const session = yield* Effect.tryPromise(() => client.session.create()).pipe(
+					Effect.mapError((cause) => new AgentError({ message: "Failed to create session", cause }))
+				);
+
+				if (session.error) {
+					server.close();
+					return yield* Effect.fail(
+						new AgentError({ message: "Failed to create session", cause: session.error })
 					);
+				}
 
-					const session = yield* Effect.tryPromise(() => client.session.create()).pipe(
-						Effect.mapError((cause) => new AgentError({ message: "Failed to create session", cause }))
-					);
+				const sessionState: SessionState = {
+					client,
+					server,
+					sessionID: session.data.id,
+					collectionPath: collection.path
+				};
 
-					if (session.error) {
-						server.close();
-						return yield* Effect.fail(
-							new AgentError({ message: "Failed to create session", cause: session.error })
-						);
-					}
+				const eventStream = yield* streamSessionEvents({
+					sessionID: sessionState.sessionID,
+					client
+				});
 
-					const sessionState: SessionState = {
-						client,
-						server,
-						sessionID: session.data.id,
-						collectionPath: collection.path
-					};
+				const errorDeferred = yield* Deferred.make<never, AgentError>();
 
-					const eventStream = yield* streamSessionEvents({
-						sessionID: sessionState.sessionID,
-						client
-					});
+				yield* firePrompt({
+					sessionID: sessionState.sessionID,
+					text: question,
+					errorDeferred,
+					client,
+					provider: config.provider,
+					model: config.model
+				}).pipe(Effect.forkDaemon);
 
-					const errorDeferred = yield* Deferred.make<never, AgentError>();
+				const filtered = eventStream.pipe(
+					Stream.mapEffect((event) => {
+						if (event.type === "session.error") {
+							const props: any = event.properties;
+							return Effect.fail(
+								new AgentError({
+									message: props?.error?.name ?? "Unknown session error",
+									cause: props?.error
+								})
+							);
+						}
+						return Effect.succeed(event);
+					}),
+					Stream.interruptWhen(Deferred.await(errorDeferred)),
+					Stream.ensuring(Effect.sync(() => server.close()))
+				);
 
-					yield* firePrompt({
-						sessionID: sessionState.sessionID,
-						text: question,
-						errorDeferred,
-						client,
-						provider: config.provider,
-						model: config.model
-					}).pipe(Effect.forkDaemon);
+				return {
+					stream: filtered,
+					model: { provider: config.provider, model: config.model }
+				};
+			});
 
-					const filtered = eventStream.pipe(
-						Stream.mapEffect((event) => {
-							if (event.type === "session.error") {
-								const props: any = event.properties;
-								return Effect.fail(
-									new AgentError({
-										message: props?.error?.name ?? "Unknown session error",
-										cause: props?.error
-									})
-								);
-							}
-							return Effect.succeed(event);
-						}),
-						Stream.interruptWhen(Deferred.await(errorDeferred)),
-						Stream.ensuring(Effect.sync(() => server.close()))
-					);
+		const ask: AgentService["ask"] = ({ collection, question }) =>
+			Effect.gen(function* () {
+				const { stream, model } = yield* askStream({ collection, question });
+				const events = yield* stream.pipe(Stream.runCollect).pipe(Effect.map((chunk) => Array.from(chunk)));
+				return {
+					answer: extractAnswerFromEvents(events),
+					model,
+					events
+				};
+			});
 
-					const collected = yield* filtered.pipe(Stream.runCollect).pipe(
-						Effect.map((chunk) => Array.from(chunk))
-					);
-
-					return {
-						answer: extractAnswerFromEvents(collected),
-						model: { provider: config.provider, model: config.model },
-						events: collected
-					};
-				})
-		};
+		return { askStream, ask };
 	})
 );

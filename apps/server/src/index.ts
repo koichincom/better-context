@@ -5,7 +5,7 @@ import {
 	HttpServerResponse
 } from "@effect/platform";
 import { BunContext, BunHttpServer, BunRuntime } from "@effect/platform-bun";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, Schema, Stream } from "effect";
 import { Agent, AgentLive } from "./agent/index.ts";
 import { CollectionError, Collections, CollectionsLive, getCollectionKey } from "./collections/index.ts";
 import { Config, ConfigLive } from "./config/index.ts";
@@ -16,7 +16,8 @@ const ServerLayer = BunHttpServer.layer({ port: 8080 });
 const QuestionRequestSchema = Schema.Struct({
 	question: Schema.String,
 	resources: Schema.optional(Schema.Array(Schema.String)),
-	quiet: Schema.optional(Schema.Boolean)
+	quiet: Schema.optional(Schema.Boolean),
+	stream: Schema.optional(Schema.Boolean)
 });
 
 type QuestionRequest = typeof QuestionRequestSchema.Type;
@@ -73,6 +74,91 @@ const questionHandler = Effect.gen(function* () {
 		resourceNames,
 		quiet: decoded.quiet
 	});
+
+	if (decoded.stream === true) {
+		const { stream: eventStream, model } = yield* agent.askStream({
+			collection,
+			question: decoded.question
+		});
+
+		const toSse = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
+
+		const streamingState = {
+			partIds: [] as string[],
+			partText: new Map<string, string>(),
+			answer: ""
+		};
+
+		const chunkStream = eventStream.pipe(
+			Stream.mapConcat((event) => {
+				if (event.type === "message.part.updated") {
+					const part: any = (event.properties as any).part;
+					if (!part || part.type !== "text") return [];
+
+					const partId = String(part.id);
+					const nextText = String(part.text ?? "");
+
+					if (!streamingState.partIds.includes(partId)) {
+						streamingState.partIds.push(partId);
+					}
+					streamingState.partText.set(partId, nextText);
+
+					const nextAnswer = streamingState.partIds
+						.map((id) => streamingState.partText.get(id) ?? "")
+						.join("");
+
+					const delta = nextAnswer.startsWith(streamingState.answer)
+						? nextAnswer.slice(streamingState.answer.length)
+						: nextAnswer;
+
+					streamingState.answer = nextAnswer;
+
+					return delta.length > 0 ? [toSse({ type: "chunk", text: delta })] : [];
+				}
+
+				if (event.type === "session.idle") {
+					return [toSse({ type: "done", answer: streamingState.answer })];
+				}
+
+				return [];
+			}),
+			Stream.catchAll((error) =>
+				Stream.make(
+					toSse({
+						type: "error",
+						tag:
+							error && typeof error === "object" && "_tag" in error
+							? String((error as any)._tag)
+							: "UnknownError",
+						message:
+							error && typeof error === "object" && "message" in error
+							? String((error as any).message)
+							: String(error)
+					})
+				)
+			)
+		);
+
+		const metaEvent = toSse({
+			type: "meta",
+			model,
+			resources: resourceNames,
+			collection: {
+				key: getCollectionKey(resourceNames),
+				path: collection.path
+			}
+		});
+
+		const bodyStream = Stream.concat(Stream.make(metaEvent), chunkStream).pipe(Stream.encodeText);
+
+		return HttpServerResponse.stream(bodyStream, {
+			contentType: "text/event-stream",
+			headers: {
+				"cache-control": "no-cache",
+				connection: "keep-alive"
+			}
+		});
+	}
 
 	const result = yield* agent.ask({
 		collection,
