@@ -1,5 +1,5 @@
 import { FileSystem } from '@effect/platform';
-import { Effect, Schema } from 'effect';
+import { Context, Effect, Layer, Schema } from 'effect';
 import { ResourceDefinitionSchema, type ResourceDefinition } from '../resources/schema.ts';
 
 export const GLOBAL_CONFIG_DIR = '~/.config/btca';
@@ -51,12 +51,16 @@ export const StoredConfigSchema = Schema.Struct({
 
 export type StoredConfig = typeof StoredConfigSchema.Type;
 
-export interface Config {
-	resourcesDirectory: string;
-	resources: readonly ResourceDefinition[];
-	model: string;
-	provider: string;
+export interface ConfigService {
+	readonly resourcesDirectory: string;
+	readonly collectionsDirectory: string;
+	readonly resources: readonly ResourceDefinition[];
+	readonly model: string;
+	readonly provider: string;
+	readonly getResource: (name: string) => ResourceDefinition | undefined;
 }
+
+export class Config extends Context.Tag('btca/Config')<Config, ConfigService>() {}
 
 const expandHome = (path: string): string => {
 	const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -103,38 +107,45 @@ const loadConfigFromPath = (configPath: string) =>
 		return yield* Schema.decodeUnknown(StoredConfigSchema)(parsed);
 	});
 
-export const loadConfig = Effect.gen(function* () {
-	const fs = yield* FileSystem.FileSystem;
-	const cwd = process.cwd();
-
-	const projectConfigPath = `${cwd}/${PROJECT_CONFIG_FILENAME}`;
-	const projectConfigExists = yield* fs.exists(projectConfigPath);
-
-	if (projectConfigExists) {
-		const stored = yield* loadConfigFromPath(projectConfigPath);
-		const resourcesDirectory = `${cwd}/${PROJECT_DATA_DIR}/resources`;
-
-		return {
-			resourcesDirectory,
-			resources: stored.resources,
-			model: stored.model,
-			provider: stored.provider
-		} satisfies Config;
-	}
-
-	const globalConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${GLOBAL_CONFIG_FILENAME}`;
-	const globalConfigExists = yield* fs.exists(globalConfigPath);
-
-	const stored = globalConfigExists
-		? yield* loadConfigFromPath(globalConfigPath)
-		: yield* createDefaultConfig(globalConfigPath);
-
-	const resourcesDirectory = `${expandHome(GLOBAL_DATA_DIR)}/resources`;
-
-	return {
-		resourcesDirectory,
-		resources: stored.resources,
-		model: stored.model,
-		provider: stored.provider
-	} satisfies Config;
+const makeConfigService = (
+	stored: StoredConfig,
+	resourcesDirectory: string,
+	collectionsDirectory: string
+): ConfigService => ({
+	resourcesDirectory,
+	collectionsDirectory,
+	resources: stored.resources,
+	model: stored.model,
+	provider: stored.provider,
+	getResource: (name: string) => stored.resources.find((r) => r.name === name)
 });
+
+export const ConfigLive = Layer.effect(
+	Config,
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const cwd = process.cwd();
+
+		const projectConfigPath = `${cwd}/${PROJECT_CONFIG_FILENAME}`;
+		const projectConfigExists = yield* fs.exists(projectConfigPath);
+
+		if (projectConfigExists) {
+			const stored = yield* loadConfigFromPath(projectConfigPath);
+			const resourcesDirectory = `${cwd}/${PROJECT_DATA_DIR}/resources`;
+			const collectionsDirectory = `${cwd}/${PROJECT_DATA_DIR}/collections`;
+			return makeConfigService(stored, resourcesDirectory, collectionsDirectory);
+		}
+
+		const globalConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${GLOBAL_CONFIG_FILENAME}`;
+		const globalConfigExists = yield* fs.exists(globalConfigPath);
+
+		const stored = globalConfigExists
+			? yield* loadConfigFromPath(globalConfigPath)
+			: yield* createDefaultConfig(globalConfigPath);
+
+		const resourcesDirectory = `${expandHome(GLOBAL_DATA_DIR)}/resources`;
+		const collectionsDirectory = `${expandHome(GLOBAL_DATA_DIR)}/collections`;
+
+		return makeConfigService(stored, resourcesDirectory, collectionsDirectory);
+	})
+);

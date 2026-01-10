@@ -1,15 +1,14 @@
 import type { Effect } from 'effect';
 
-// GLOBAL RESOURCE TYPES
+export const FS_RESOURCE_SYSTEM_NOTE =
+	'This is a btca resource - a searchable knowledge source the agent can reference.';
+
 export interface BtcaFsResource {
 	readonly _tag: 'fs-based';
 	readonly name: string;
 	readonly type: 'git';
-	readonly specialAgentInstructions: string;
 	readonly getAbsoluteDirectoryPath: Effect.Effect<string>;
-	// in the future we'll add methods for updating the resource. for fs based resources the agent can just edit the files
-	// but then it'll need to submit the changes
-	// readonly submitChanges: Effect.Effect<void>;
+	readonly getAgentInstructions: Effect.Effect<string>;
 }
 
 export interface BtcaToolResource {

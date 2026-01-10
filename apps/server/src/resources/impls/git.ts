@@ -1,7 +1,7 @@
 import { FileSystem } from '@effect/platform';
 import { Effect, Layer } from 'effect';
-import { createResourceTag, ResourceError } from '../helpers';
-import type { BtcaGitResourceArgs } from '../types';
+import { createResourceTag, ResourceError } from '../helpers.ts';
+import { FS_RESOURCE_SYSTEM_NOTE, type BtcaGitResourceArgs } from '../types.ts';
 
 const isValidGitUrl = (url: string) => /^https?:\/\//.test(url) || /^git@/.test(url);
 const isValidBranch = (branch: string) => /^[\w\-./]+$/.test(branch);
@@ -127,8 +127,17 @@ export const loadGitResource = (config: BtcaGitResourceArgs) => {
 				_tag: 'fs-based',
 				name: config.name,
 				type: 'git',
-				specialAgentInstructions: config.specialAgentInstructions,
-				getAbsoluteDirectoryPath: Effect.succeed(localPath)
+				getAbsoluteDirectoryPath: Effect.succeed(localPath),
+				getAgentInstructions: Effect.succeed(
+					[
+						`## Resource: ${config.name}`,
+						FS_RESOURCE_SYSTEM_NOTE,
+						`Path: ${localPath}`,
+						config.specialAgentInstructions ? `Notes: ${config.specialAgentInstructions}` : ''
+					]
+						.filter(Boolean)
+						.join('\n')
+				)
 			};
 		})
 	);
