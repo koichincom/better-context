@@ -1,14 +1,26 @@
 import { createSignal, type Component } from 'solid-js';
 import { ConfigProvider } from './context/config-context.tsx';
 import { MessagesProvider } from './context/messages-context.tsx';
-import { render, useKeyboard, useRenderer } from '@opentui/solid';
+import { ToastProvider, useToast } from './context/toast-context.tsx';
+import { render, useKeyboard, useRenderer, useSelectionHandler } from '@opentui/solid';
 import { MainUi } from './index.tsx';
 import { ConsolePosition } from '@opentui/core';
+import { copyToClipboard } from './clipboard.ts';
 
 const App: Component = () => {
 	const renderer = useRenderer();
+	const toast = useToast();
 
 	const [heightPercent, setHeightPercent] = createSignal<`${number}%`>('100%');
+
+	// Auto-copy selected text to clipboard
+	useSelectionHandler((selection) => {
+		const text = selection.getSelectedText();
+		if (text && text.length > 0) {
+			void copyToClipboard(text);
+			toast.show('Copied to clipboard');
+		}
+	});
 
 	useKeyboard((key) => {
 		// Debug console toggle
@@ -47,7 +59,9 @@ render(
 	() => (
 		<ConfigProvider>
 			<MessagesProvider>
-				<App />
+				<ToastProvider>
+					<App />
+				</ToastProvider>
 			</MessagesProvider>
 		</ConfigProvider>
 	),

@@ -124,6 +124,64 @@ const ChunkRenderer: Component<{ chunk: BtcaChunk; isStreaming: boolean }> = (pr
 	);
 };
 
+/**
+ * Renders chunks in display order: reasoning, tools, text
+ * This ensures consistent UX regardless of stream arrival order
+ */
+const ChunksRenderer: Component<{
+	chunks: BtcaChunk[];
+	isStreaming: boolean;
+	isCanceled?: boolean;
+	textColor?: string;
+}> = (props) => {
+	// Sort chunks into display order: reasoning first, then tools, then text
+	const sortedChunks = () => {
+		const reasoning: BtcaChunk[] = [];
+		const tools: BtcaChunk[] = [];
+		const text: BtcaChunk[] = [];
+		const other: BtcaChunk[] = [];
+
+		for (const chunk of props.chunks) {
+			switch (chunk.type) {
+				case 'reasoning':
+					reasoning.push(chunk);
+					break;
+				case 'tool':
+					tools.push(chunk);
+					break;
+				case 'text':
+					text.push(chunk);
+					break;
+				default:
+					other.push(chunk);
+			}
+		}
+
+		return [...reasoning, ...tools, ...text, ...other];
+	};
+
+	const isLastChunk = (idx: number) => idx === sortedChunks().length - 1;
+
+	return (
+		<box style={{ flexDirection: 'column', gap: 1 }}>
+			<For each={sortedChunks()}>
+				{(chunk, idx) => (
+					<Show
+						when={props.isCanceled && chunk.type === 'text'}
+						fallback={
+							<ChunkRenderer chunk={chunk} isStreaming={props.isStreaming && isLastChunk(idx())} />
+						}
+					>
+						<text fg={props.textColor}>
+							{stripConversationHistory((chunk as { text: string }).text)}
+						</text>
+					</Show>
+				)}
+			</For>
+		</box>
+	);
+};
+
 const AssistantMessage: Component<{
 	content: AssistantContent;
 	isStreaming: boolean;
@@ -143,27 +201,12 @@ const AssistantMessage: Component<{
 				</Show>
 			</Match>
 			<Match when={props.content.type === 'chunks'}>
-				<box style={{ flexDirection: 'column', gap: 1 }}>
-					<For each={(props.content as { type: 'chunks'; chunks: BtcaChunk[] }).chunks}>
-						{(chunk, idx) => {
-							const isLastChunk = () =>
-								idx() ===
-								(props.content as { type: 'chunks'; chunks: BtcaChunk[] }).chunks.length - 1;
-							return (
-								<Show
-									when={props.isCanceled && chunk.type === 'text'}
-									fallback={
-										<ChunkRenderer chunk={chunk} isStreaming={props.isStreaming && isLastChunk()} />
-									}
-								>
-									<text fg={textColor()}>
-										{stripConversationHistory((chunk as { text: string }).text)}
-									</text>
-								</Show>
-							);
-						}}
-					</For>
-				</box>
+				<ChunksRenderer
+					chunks={(props.content as { type: 'chunks'; chunks: BtcaChunk[] }).chunks}
+					isStreaming={props.isStreaming}
+					isCanceled={props.isCanceled}
+					textColor={textColor()}
+				/>
 			</Match>
 		</Switch>
 	);

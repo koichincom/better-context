@@ -63,14 +63,16 @@ export const services = {
 			quiet: true
 		});
 
-		const chunks = new Map<string, BtcaChunk>();
+		// Track chunks by ID for updates, and order separately for display
+		const chunksById = new Map<string, BtcaChunk>();
+		const chunkOrder: string[] = [];
 
 		for await (const event of parseSSEStream(response)) {
-			processStreamEvent(event, chunks, onChunkUpdate);
+			processStreamEvent(event, chunksById, chunkOrder, onChunkUpdate);
 		}
 
 		currentAbortController = null;
-		return [...chunks.values()];
+		return chunkOrder.map((id) => chunksById.get(id)!);
 	},
 
 	/**
@@ -86,20 +88,22 @@ export const services = {
 
 function processStreamEvent(
 	event: BtcaStreamEvent,
-	chunks: Map<string, BtcaChunk>,
+	chunksById: Map<string, BtcaChunk>,
+	chunkOrder: string[],
 	onChunkUpdate: (update: ChunkUpdate) => void
 ): void {
 	switch (event.type) {
 		case 'text.delta': {
 			// Accumulate text deltas into a single text chunk
 			const textChunkId = '__text__';
-			const existing = chunks.get(textChunkId);
+			const existing = chunksById.get(textChunkId);
 			if (existing && existing.type === 'text') {
 				existing.text += event.delta;
 				onChunkUpdate({ type: 'update', id: textChunkId, chunk: { text: existing.text } });
 			} else {
 				const chunk: BtcaChunk = { type: 'text', id: textChunkId, text: event.delta };
-				chunks.set(textChunkId, chunk);
+				chunksById.set(textChunkId, chunk);
+				chunkOrder.push(textChunkId);
 				onChunkUpdate({ type: 'add', chunk });
 			}
 			break;
@@ -108,20 +112,21 @@ function processStreamEvent(
 		case 'reasoning.delta': {
 			// Accumulate reasoning deltas
 			const reasoningChunkId = '__reasoning__';
-			const existing = chunks.get(reasoningChunkId);
+			const existing = chunksById.get(reasoningChunkId);
 			if (existing && existing.type === 'reasoning') {
 				existing.text += event.delta;
 				onChunkUpdate({ type: 'update', id: reasoningChunkId, chunk: { text: existing.text } });
 			} else {
 				const chunk: BtcaChunk = { type: 'reasoning', id: reasoningChunkId, text: event.delta };
-				chunks.set(reasoningChunkId, chunk);
+				chunksById.set(reasoningChunkId, chunk);
+				chunkOrder.push(reasoningChunkId);
 				onChunkUpdate({ type: 'add', chunk });
 			}
 			break;
 		}
 
 		case 'tool.updated': {
-			const existing = chunks.get(event.callID);
+			const existing = chunksById.get(event.callID);
 			const state =
 				event.state.status === 'pending'
 					? 'pending'
@@ -139,7 +144,8 @@ function processStreamEvent(
 					toolName: event.tool,
 					state
 				};
-				chunks.set(event.callID, chunk);
+				chunksById.set(event.callID, chunk);
+				chunkOrder.push(event.callID);
 				onChunkUpdate({ type: 'add', chunk });
 			}
 			break;

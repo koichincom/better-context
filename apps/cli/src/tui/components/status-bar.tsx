@@ -8,6 +8,7 @@ export interface StatusBarProps {
 	cursorIn: string;
 	isStreaming: boolean;
 	cancelState: CancelState;
+	threadResources: string[];
 }
 
 export const StatusBar: Component<StatusBarProps> = (props) => {
@@ -27,7 +28,17 @@ export const StatusBar: Component<StatusBarProps> = (props) => {
 			return ' [Up/Down] Navigate  [Tab/Enter] Select  [Esc] Cancel';
 		}
 
+		// Show different help based on whether we have thread resources
+		if (props.threadResources.length > 0) {
+			return ' Ask follow-up or [@repo] to add context  [/] Commands  [Ctrl+Q] Quit';
+		}
+
 		return ' [@repo] Ask question  [/] Commands  [Ctrl+Q] Quit';
+	};
+
+	const getResourcesLabel = () => {
+		if (props.threadResources.length === 0) return '';
+		return props.threadResources.map((r) => `@${r}`).join(' ') + '  ';
 	};
 
 	return (
@@ -43,7 +54,10 @@ export const StatusBar: Component<StatusBarProps> = (props) => {
 			}}
 		>
 			<text fg={colors.textSubtle} content={getHelpText()} />
-			<text fg={colors.textSubtle} content={`v${VERSION}`} />
+			<box style={{ flexDirection: 'row' }}>
+				<text fg={colors.accent} content={getResourcesLabel()} />
+				<text fg={colors.textSubtle} content={`v${VERSION}`} />
+			</box>
 		</box>
 	);
 };

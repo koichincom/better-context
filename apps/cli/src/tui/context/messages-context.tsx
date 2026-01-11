@@ -16,12 +16,15 @@ type MessagesState = {
 	addSystemMessage: (content: string) => void;
 	clearMessages: () => void;
 
+	// Thread resources - accumulates @mentions across the conversation
+	threadResources: Accessor<string[]>;
+
 	// Streaming state
 	isStreaming: Accessor<boolean>;
 	cancelState: Accessor<CancelState>;
 
 	// Actions
-	send: (input: InputState, allResources: string[]) => Promise<void>;
+	send: (input: InputState, newResources: string[]) => Promise<void>;
 	requestCancel: () => void;
 	confirmCancel: () => Promise<void>;
 };
@@ -44,6 +47,7 @@ const defaultMessageHistory: Message[] = [
 
 export const MessagesProvider: Component<ParentProps> = (props) => {
 	const [messages, setMessages] = createSignal<Message[]>(defaultMessageHistory);
+	const [threadResources, setThreadResources] = createSignal<string[]>([]);
 	const [isStreaming, setIsStreaming] = createSignal(false);
 	const [cancelState, setCancelState] = createSignal<CancelState>('none');
 
@@ -119,14 +123,53 @@ export const MessagesProvider: Component<ParentProps> = (props) => {
 		}
 	};
 
+	// Build conversation history string from messages
+	const buildConversationHistory = (): string => {
+		const msgs = messages();
+		const historyParts: string[] = [];
+
+		for (const msg of msgs) {
+			if (msg.role === 'user') {
+				const userText = msg.content
+					.map((s) => s.content)
+					.join('')
+					.replace(/@\w+/g, '')
+					.trim();
+				if (userText) {
+					historyParts.push(`User: ${userText}`);
+				}
+			} else if (msg.role === 'assistant' && !msg.canceled) {
+				if (msg.content.type === 'text') {
+					historyParts.push(`Assistant: ${msg.content.content}`);
+				} else if (msg.content.type === 'chunks') {
+					const textChunks = msg.content.chunks.filter((c) => c.type === 'text');
+					const text = textChunks.map((c) => (c as { text: string }).text).join('\n\n');
+					if (text) {
+						historyParts.push(`Assistant: ${text}`);
+					}
+				}
+			}
+		}
+
+		return historyParts.join('\n\n');
+	};
+
 	// Main send method
-	const send = async (input: InputState, allResources: string[]) => {
+	const send = async (input: InputState, newResources: string[]) => {
 		const question = input
 			.map((s) => s.content)
 			.join('')
 			.replace(/@\w+/g, '')
 			.trim()
 			.replace(/\s+/g, ' ');
+
+		// Accumulate new resources into thread resources
+		const currentResources = threadResources();
+		const updatedResources = [...new Set([...currentResources, ...newResources])];
+		setThreadResources(updatedResources);
+
+		// Build conversation history (before adding new message)
+		const history = buildConversationHistory();
 
 		// Add user message
 		addMessage({ role: 'user', content: input });
@@ -137,8 +180,17 @@ export const MessagesProvider: Component<ParentProps> = (props) => {
 		setIsStreaming(true);
 		setCancelState('none');
 
+		// Build the full question with history if we have prior conversation
+		const questionWithHistory = history
+			? `=== CONVERSATION HISTORY ===\n${history}\n=== END HISTORY ===\n\nCurrent question: ${question}`
+			: question;
+
 		try {
-			const finalChunks = await services.askQuestion(allResources, question, handleChunkUpdate);
+			const finalChunks = await services.askQuestion(
+				updatedResources,
+				questionWithHistory,
+				handleChunkUpdate
+			);
 
 			// Check if canceled during streaming
 			if (cancelState() === 'pending') return;
@@ -174,10 +226,16 @@ export const MessagesProvider: Component<ParentProps> = (props) => {
 		setCancelState('none');
 	};
 
+	const clearMessages = () => {
+		setMessages(defaultMessageHistory);
+		setThreadResources([]);
+	};
+
 	const state: MessagesState = {
 		messages,
 		addSystemMessage: (content) => addMessage({ role: 'system', content }),
-		clearMessages: () => setMessages(defaultMessageHistory),
+		clearMessages,
+		threadResources,
 		isStreaming,
 		cancelState,
 		send,

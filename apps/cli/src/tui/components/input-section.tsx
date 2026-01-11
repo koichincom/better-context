@@ -54,9 +54,10 @@ export const InputSection: Component = () => {
 		if (messages.isStreaming()) return;
 
 		const parsed = parseAllMentions(inputText);
+		const existingResources = messages.threadResources();
 
-		// Validate resources - require at least one @mention
-		if (parsed.repos.length === 0) {
+		// Validate resources - require at least one @mention OR existing thread resources
+		if (parsed.repos.length === 0 && existingResources.length === 0) {
 			messages.addSystemMessage('Use @reponame to add context. Example: @svelte How do I...?');
 			return;
 		}
@@ -65,13 +66,13 @@ export const InputSection: Component = () => {
 			return;
 		}
 
-		// Validate repos exist
+		// Validate any new repos exist
 		const availableRepos = config.repos();
-		const validRepos: string[] = [];
+		const validNewRepos: string[] = [];
 		const invalidRepos: string[] = [];
 		for (const repoName of parsed.repos) {
 			const found = availableRepos.find((r) => r.name.toLowerCase() === repoName.toLowerCase());
-			if (found) validRepos.push(found.name);
+			if (found) validNewRepos.push(found.name);
 			else invalidRepos.push(repoName);
 		}
 		if (invalidRepos.length > 0) {
@@ -81,10 +82,10 @@ export const InputSection: Component = () => {
 			return;
 		}
 
-		// Clear input and send
+		// Clear input and send (pass only new repos - context will merge with existing)
 		const currentInput = inputState();
 		setInputState([]);
-		await messages.send(currentInput, validRepos);
+		await messages.send(currentInput, validNewRepos);
 	};
 
 	const handleCommandExecute = (command: { mode: string }) => {
@@ -157,11 +158,12 @@ export const InputSection: Component = () => {
 				/>
 			</Show>
 
-			<StatusBar
-				cursorIn={cursorIsCurrentlyIn()}
-				isStreaming={messages.isStreaming()}
-				cancelState={messages.cancelState()}
-			/>
+		<StatusBar
+			cursorIn={cursorIsCurrentlyIn()}
+			isStreaming={messages.isStreaming()}
+			cancelState={messages.cancelState()}
+			threadResources={messages.threadResources()}
+		/>
 		</>
 	);
 };
