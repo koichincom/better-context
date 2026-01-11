@@ -1,0 +1,167 @@
+import { createSignal, createMemo, Show, type Component } from 'solid-js';
+import type { TextareaRenderable } from '@opentui/core';
+import { useKeyboard } from '@opentui/solid';
+import type { InputState } from '../types.ts';
+import { useMessagesContext } from '../context/messages-context.tsx';
+import { useConfigContext } from '../context/config-context.tsx';
+import { MainInput } from './main-input.tsx';
+import { StatusBar } from './status-bar.tsx';
+import { CommandPalette } from './command-palette.tsx';
+import { RepoMentionPalette } from './repo-mention-palette.tsx';
+
+export const InputSection: Component = () => {
+	const messages = useMessagesContext();
+	const config = useConfigContext();
+
+	// Input state - all local
+	const [inputState, setInputState] = createSignal<InputState>([]);
+	const [cursorPosition, setCursorPosition] = createSignal(0);
+	const [inputRef, setInputRef] = createSignal<TextareaRenderable | null>(null);
+
+	// Computed: what type of content is cursor in
+	const cursorIsCurrentlyIn = createMemo(() => {
+		const items = inputState();
+		let minIdx = 0;
+		for (const item of items) {
+			const displayLen =
+				item.type === 'pasted' ? `[~${item.lines} lines]`.length : item.content.length;
+			const maxIdx = minIdx + displayLen;
+			if (cursorPosition() >= minIdx && cursorPosition() <= maxIdx) return item.type;
+			minIdx = maxIdx;
+		}
+		return 'text';
+	});
+
+	// Parse @mentions from input
+	const parseAllMentions = (input: string) => {
+		const mentionRegex = /@(\w+)/g;
+		const repos: string[] = [];
+		let match;
+		while ((match = mentionRegex.exec(input)) !== null) {
+			repos.push(match[1]!);
+		}
+		const question = input.replace(mentionRegex, '').trim().replace(/\s+/g, ' ');
+		return { repos: [...new Set(repos)], question };
+	};
+
+	const handleSubmit = async () => {
+		const inputText = inputState()
+			.map((s) => s.content)
+			.join('')
+			.trim();
+		if (!inputText) return;
+		if (cursorIsCurrentlyIn() === 'command' || cursorIsCurrentlyIn() === 'mention') return;
+		if (messages.isStreaming()) return;
+
+		const parsed = parseAllMentions(inputText);
+
+		// Validate resources - require at least one @mention
+		if (parsed.repos.length === 0) {
+			messages.addSystemMessage('Use @reponame to add context. Example: @svelte How do I...?');
+			return;
+		}
+		if (!parsed.question.trim()) {
+			messages.addSystemMessage('Please enter a question after the @mention.');
+			return;
+		}
+
+		// Validate repos exist
+		const availableRepos = config.repos();
+		const validRepos: string[] = [];
+		const invalidRepos: string[] = [];
+		for (const repoName of parsed.repos) {
+			const found = availableRepos.find((r) => r.name.toLowerCase() === repoName.toLowerCase());
+			if (found) validRepos.push(found.name);
+			else invalidRepos.push(repoName);
+		}
+		if (invalidRepos.length > 0) {
+			messages.addSystemMessage(
+				`Repo(s) not found: ${invalidRepos.join(', ')}. Configure resources in your btca config.`
+			);
+			return;
+		}
+
+		// Clear input and send
+		const currentInput = inputState();
+		setInputState([]);
+		await messages.send(currentInput, validRepos);
+	};
+
+	const handleCommandExecute = (command: { mode: string }) => {
+		setInputState([]);
+		switch (command.mode) {
+			case 'clear':
+				messages.clearMessages();
+				messages.addSystemMessage('Chat cleared.');
+				break;
+		}
+	};
+
+	// Keyboard handling for ESC cancel flow and submit
+	useKeyboard((key) => {
+		if (key.name === 'escape') {
+			if (messages.isStreaming()) {
+				if (messages.cancelState() === 'none') {
+					messages.requestCancel();
+				} else {
+					messages.confirmCancel();
+				}
+				return;
+			}
+			if (cursorIsCurrentlyIn() === 'command' || cursorIsCurrentlyIn() === 'mention') {
+				setInputState([]);
+			}
+		}
+		if (key.name === 'return' && !messages.isStreaming()) {
+			if (cursorIsCurrentlyIn() === 'text' || cursorIsCurrentlyIn() === 'pasted') {
+				handleSubmit();
+			}
+		}
+		// Ctrl+C handling
+		if (key.name === 'c' && key.ctrl) {
+			if (inputState().length > 0) {
+				setInputState([]);
+			}
+		}
+	});
+
+	return (
+		<>
+			<MainInput
+				inputState={inputState()}
+				setInputState={setInputState}
+				cursorPosition={cursorPosition()}
+				setCursorPosition={setCursorPosition}
+				inputRef={inputRef()}
+				setInputRef={setInputRef}
+				focused={!messages.isStreaming()}
+				isStreaming={messages.isStreaming()}
+				cancelState={messages.cancelState()}
+			/>
+
+			{/* Palettes */}
+			<Show when={cursorIsCurrentlyIn() === 'mention' && !messages.isStreaming()}>
+				<RepoMentionPalette
+					inputState={inputState()}
+					setInputState={setInputState}
+					inputRef={inputRef()}
+					cursorPosition={cursorPosition()}
+				/>
+			</Show>
+			<Show when={cursorIsCurrentlyIn() === 'command' && !messages.isStreaming()}>
+				<CommandPalette
+					inputState={inputState()}
+					setInputState={setInputState}
+					inputRef={inputRef()}
+					onExecute={handleCommandExecute}
+				/>
+			</Show>
+
+			<StatusBar
+				cursorIn={cursorIsCurrentlyIn()}
+				isStreaming={messages.isStreaming()}
+				cancelState={messages.cancelState()}
+			/>
+		</>
+	);
+};

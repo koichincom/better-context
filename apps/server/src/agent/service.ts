@@ -68,6 +68,11 @@ export namespace Agent {
 		}) => Promise<{ stream: AsyncIterable<OcEvent>; model: { provider: string; model: string } }>;
 
 		ask: (args: { collection: CollectionResult; question: string }) => Promise<AgentResult>;
+
+		getOpencodeInstance: (args: { collection: CollectionResult }) => Promise<{
+			url: string;
+			model: { provider: string; model: string };
+		}>;
 	};
 
 	const buildOpenCodeConfig = (args: { agentInstructions: string }): OpenCodeConfig => {
@@ -303,6 +308,24 @@ export namespace Agent {
 			return { answer: extractAnswerFromEvents(events), model, events };
 		};
 
-		return { askStream, ask };
+		const getOpencodeInstanceMethod: Service['getOpencodeInstance'] = async ({ collection }) => {
+			const ocConfig = buildOpenCodeConfig({ agentInstructions: collection.agentInstructions });
+			const { baseUrl } = await getOpencodeInstance({
+				collectionPath: collection.path,
+				ocConfig
+			});
+
+			Metrics.info('agent.oc.instance.ready', { baseUrl, collectionPath: collection.path });
+
+			// Note: The server stays alive - it's the caller's responsibility to manage the lifecycle
+			// For CLI usage, the opencode CLI will connect to this instance and manage it
+
+			return {
+				url: baseUrl,
+				model: { provider: config.provider, model: config.model }
+			};
+		};
+
+		return { askStream, ask, getOpencodeInstance: getOpencodeInstanceMethod };
 	};
 }

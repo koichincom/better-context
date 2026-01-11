@@ -23,7 +23,15 @@ import type { BtcaStreamMetaEvent } from './stream/types.ts';
  * GET  /resources         - Lists all configured resources
  * POST /question          - Ask a question (non-streaming)
  * POST /question/stream   - Ask a question (streaming SSE response)
+ * POST /opencode          - Get OpenCode instance URL for a collection
  */
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_PORT = 8080;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : DEFAULT_PORT;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Schemas
@@ -35,7 +43,10 @@ const QuestionRequestSchema = z.object({
 	quiet: z.boolean().optional()
 });
 
-type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
+const OpencodeRequestSchema = z.object({
+	resources: z.array(z.string()).optional(),
+	quiet: z.boolean().optional()
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Errors & Helpers
@@ -63,11 +74,223 @@ const decodeJson = async <T>(req: Request, schema: z.ZodType<T>): Promise<T> => 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// App Factory
+// ─────────────────────────────────────────────────────────────────────────────
+
+const createApp = (deps: {
+	config: Config.Service;
+	resources: Resources.Service;
+	collections: Collections.Service;
+	agent: Agent.Service;
+}) => {
+	const { config, collections, agent } = deps;
+
+	const app = new Hono()
+		// ─────────────────────────────────────────────────────────────────────
+		// Middleware
+		// ─────────────────────────────────────────────────────────────────────
+		.use('*', async (c: HonoContext, next: Next) => {
+			const requestId = crypto.randomUUID();
+			return Context.run({ requestId, txDepth: 0 }, async () => {
+				Metrics.info('http.request', { method: c.req.method, path: c.req.path });
+				try {
+					await next();
+				} finally {
+					Metrics.info('http.response', {
+						path: c.req.path,
+						status: c.res.status
+					});
+				}
+			});
+		})
+		.onError((err: Error, c: HonoContext) => {
+			Metrics.error('http.error', { error: Metrics.errorInfo(err) });
+			const tag = getErrorTag(err);
+			const message = getErrorMessage(err);
+			const status = tag === 'CollectionError' || tag === 'ResourceError' ? 400 : 500;
+			return c.json({ error: message, tag }, status);
+		})
+
+		// ─────────────────────────────────────────────────────────────────────
+		// Routes
+		// ─────────────────────────────────────────────────────────────────────
+
+		// GET / - Health check
+		.get('/', (c: HonoContext) => {
+			return c.json({
+				ok: true,
+				service: 'btca-server',
+				version: '0.0.1'
+			});
+		})
+
+		// GET /config
+		.get('/config', (c: HonoContext) => {
+			return c.json({
+				provider: config.provider,
+				model: config.model,
+				resourcesDirectory: config.resourcesDirectory,
+				collectionsDirectory: config.collectionsDirectory,
+				resourceCount: config.resources.length
+			});
+		})
+
+		// GET /resources
+		.get('/resources', (c: HonoContext) => {
+			return c.json({
+				resources: config.resources.map((r) => ({
+					name: r.name,
+					type: r.type,
+					url: r.url,
+					branch: r.branch,
+					searchPath: r.searchPath ?? null,
+					specialNotes: r.specialNotes ?? null
+				}))
+			});
+		})
+
+		// POST /question
+		.post('/question', async (c: HonoContext) => {
+			const decoded = await decodeJson(c.req.raw, QuestionRequestSchema);
+			const resourceNames =
+				decoded.resources && decoded.resources.length > 0
+					? decoded.resources
+					: config.resources.map((r) => r.name);
+
+			const collectionKey = getCollectionKey(resourceNames);
+			Metrics.info('question.received', {
+				stream: false,
+				quiet: decoded.quiet ?? false,
+				questionLength: decoded.question.length,
+				resources: resourceNames,
+				collectionKey
+			});
+
+			const collection = await collections.load({ resourceNames, quiet: decoded.quiet });
+			Metrics.info('collection.ready', { collectionKey, path: collection.path });
+
+			const result = await agent.ask({ collection, question: decoded.question });
+			Metrics.info('question.done', {
+				collectionKey,
+				answerLength: result.answer.length,
+				model: result.model
+			});
+
+			return c.json({
+				answer: result.answer,
+				model: result.model,
+				resources: resourceNames,
+				collection: { key: collectionKey, path: collection.path }
+			});
+		})
+
+		// POST /question/stream
+		.post('/question/stream', async (c: HonoContext) => {
+			const decoded = await decodeJson(c.req.raw, QuestionRequestSchema);
+			const resourceNames =
+				decoded.resources && decoded.resources.length > 0
+					? decoded.resources
+					: config.resources.map((r) => r.name);
+
+			const collectionKey = getCollectionKey(resourceNames);
+			Metrics.info('question.received', {
+				stream: true,
+				quiet: decoded.quiet ?? false,
+				questionLength: decoded.question.length,
+				resources: resourceNames,
+				collectionKey
+			});
+
+			const collection = await collections.load({ resourceNames, quiet: decoded.quiet });
+			Metrics.info('collection.ready', { collectionKey, path: collection.path });
+
+			const { stream: eventStream, model } = await agent.askStream({
+				collection,
+				question: decoded.question
+			});
+
+			const meta = {
+				type: 'meta',
+				model,
+				resources: resourceNames,
+				collection: {
+					key: collectionKey,
+					path: collection.path
+				}
+			} satisfies BtcaStreamMetaEvent;
+
+			Metrics.info('question.stream.start', { collectionKey });
+			const stream = StreamService.createSseStream({ meta, eventStream });
+
+			return new Response(stream, {
+				headers: {
+					'content-type': 'text/event-stream',
+					'cache-control': 'no-cache',
+					connection: 'keep-alive'
+				}
+			});
+		})
+
+		// POST /opencode - Get OpenCode instance URL for a collection
+		.post('/opencode', async (c: HonoContext) => {
+			const decoded = await decodeJson(c.req.raw, OpencodeRequestSchema);
+			const resourceNames =
+				decoded.resources && decoded.resources.length > 0
+					? decoded.resources
+					: config.resources.map((r) => r.name);
+
+			const collectionKey = getCollectionKey(resourceNames);
+			Metrics.info('opencode.requested', {
+				quiet: decoded.quiet ?? false,
+				resources: resourceNames,
+				collectionKey
+			});
+
+			const collection = await collections.load({ resourceNames, quiet: decoded.quiet });
+			Metrics.info('collection.ready', { collectionKey, path: collection.path });
+
+			const { url, model } = await agent.getOpencodeInstance({ collection });
+			Metrics.info('opencode.ready', { collectionKey, url });
+
+			return c.json({
+				url,
+				model,
+				resources: resourceNames,
+				collection: { key: collectionKey, path: collection.path }
+			});
+		});
+
+	return app;
+};
+
+// Export app type for Hono RPC client
+// We create a dummy app with null deps just to get the type
+type AppType = ReturnType<typeof createApp>;
+export type { AppType };
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Server
 // ─────────────────────────────────────────────────────────────────────────────
 
-const start = async () => {
-	Metrics.info('server.starting', { port: 8080 });
+export interface ServerInstance {
+	port: number;
+	url: string;
+	stop: () => void;
+}
+
+export interface StartServerOptions {
+	port?: number;
+}
+
+/**
+ * Start the btca server programmatically.
+ * Returns a ServerInstance with the port, url, and stop function.
+ *
+ * If port is 0, a random available port will be assigned by the OS.
+ */
+export const startServer = async (options: StartServerOptions = {}): Promise<ServerInstance> => {
+	const requestedPort = options.port ?? PORT;
+	Metrics.info('server.starting', { port: requestedPort });
 
 	const config = await Config.load();
 	Metrics.info('config.ready', {
@@ -82,167 +305,25 @@ const start = async () => {
 	const collections = Collections.create({ config, resources });
 	const agent = Agent.create(config);
 
-	// ─────────────────────────────────────────────────────────────────────────
-	// Create Hono App
-	// ─────────────────────────────────────────────────────────────────────────
+	const app = createApp({ config, resources, collections, agent });
 
-	const app = new Hono();
-
-	// Request context middleware
-	app.use('*', async (c: HonoContext, next: Next) => {
-		const requestId = crypto.randomUUID();
-		return Context.run({ requestId, txDepth: 0 }, async () => {
-			Metrics.info('http.request', { method: c.req.method, path: c.req.path });
-			try {
-				await next();
-			} finally {
-				Metrics.info('http.response', {
-					path: c.req.path,
-					status: c.res.status
-				});
-			}
-		});
-	});
-
-	// Error handler
-	app.onError((err: Error, c: HonoContext) => {
-		Metrics.error('http.error', { error: Metrics.errorInfo(err) });
-		const tag = getErrorTag(err);
-		const message = getErrorMessage(err);
-		const status = tag === 'CollectionError' || tag === 'ResourceError' ? 400 : 500;
-		return c.json({ error: message, tag }, status);
-	});
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// Routes
-	// ─────────────────────────────────────────────────────────────────────────
-
-	// GET / - Health check
-	app.get('/', (c: HonoContext) => {
-		return c.json({
-			ok: true,
-			service: 'btca-server',
-			version: '0.0.1'
-		});
-	});
-
-	// GET /config
-	app.get('/config', (c: HonoContext) => {
-		return c.json({
-			provider: config.provider,
-			model: config.model,
-			resourcesDirectory: config.resourcesDirectory,
-			collectionsDirectory: config.collectionsDirectory,
-			resourceCount: config.resources.length
-		});
-	});
-
-	// GET /resources
-	app.get('/resources', (c: HonoContext) => {
-		return c.json({
-			resources: config.resources.map((r) => ({
-				name: r.name,
-				type: r.type,
-				url: r.url,
-				branch: r.branch,
-				searchPath: r.searchPath ?? null,
-				specialNotes: r.specialNotes ?? null
-			}))
-		});
-	});
-
-	// POST /question
-	app.post('/question', async (c: HonoContext) => {
-		const decoded = await decodeJson(c.req.raw, QuestionRequestSchema);
-		const resourceNames =
-			decoded.resources && decoded.resources.length > 0
-				? decoded.resources
-				: config.resources.map((r) => r.name);
-
-		const collectionKey = getCollectionKey(resourceNames);
-		Metrics.info('question.received', {
-			stream: false,
-			quiet: decoded.quiet ?? false,
-			questionLength: decoded.question.length,
-			resources: resourceNames,
-			collectionKey
-		});
-
-		const collection = await collections.load({ resourceNames, quiet: decoded.quiet });
-		Metrics.info('collection.ready', { collectionKey, path: collection.path });
-
-		const result = await agent.ask({ collection, question: decoded.question });
-		Metrics.info('question.done', {
-			collectionKey,
-			answerLength: result.answer.length,
-			model: result.model
-		});
-
-		return c.json({
-			answer: result.answer,
-			model: result.model,
-			resources: resourceNames,
-			collection: { key: collectionKey, path: collection.path }
-		});
-	});
-
-	// POST /question/stream
-	app.post('/question/stream', async (c: HonoContext) => {
-		const decoded = await decodeJson(c.req.raw, QuestionRequestSchema);
-		const resourceNames =
-			decoded.resources && decoded.resources.length > 0
-				? decoded.resources
-				: config.resources.map((r) => r.name);
-
-		const collectionKey = getCollectionKey(resourceNames);
-		Metrics.info('question.received', {
-			stream: true,
-			quiet: decoded.quiet ?? false,
-			questionLength: decoded.question.length,
-			resources: resourceNames,
-			collectionKey
-		});
-
-		const collection = await collections.load({ resourceNames, quiet: decoded.quiet });
-		Metrics.info('collection.ready', { collectionKey, path: collection.path });
-
-		const { stream: eventStream, model } = await agent.askStream({
-			collection,
-			question: decoded.question
-		});
-
-		const meta = {
-			type: 'meta',
-			model,
-			resources: resourceNames,
-			collection: {
-				key: collectionKey,
-				path: collection.path
-			}
-		} satisfies BtcaStreamMetaEvent;
-
-		Metrics.info('question.stream.start', { collectionKey });
-		const stream = StreamService.createSseStream({ meta, eventStream });
-
-		return new Response(stream, {
-			headers: {
-				'content-type': 'text/event-stream',
-				'cache-control': 'no-cache',
-				connection: 'keep-alive'
-			}
-		});
-	});
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// Start Server
-	// ─────────────────────────────────────────────────────────────────────────
-
-	Bun.serve({
-		port: 8080,
+	const server = Bun.serve({
+		port: requestedPort,
 		fetch: app.fetch
 	});
 
-	Metrics.info('server.started', { port: 8080 });
+	const actualPort = server.port ?? requestedPort;
+	Metrics.info('server.started', { port: actualPort });
+
+	return {
+		port: actualPort,
+		url: `http://localhost:${actualPort}`,
+		stop: () => server.stop()
+	};
 };
 
-await start();
+// Auto-start when run directly (not imported)
+const isMainModule = import.meta.main;
+if (isMainModule) {
+	await startServer({ port: PORT });
+}

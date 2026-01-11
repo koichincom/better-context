@@ -5,6 +5,7 @@
 	"type": "module",
 	"private": true,
 	"exports": {
+		".": "./src/index.ts",
 		"./stream": "./src/stream/index.ts",
 		"./stream/types": "./src/stream/types.ts"
 	},

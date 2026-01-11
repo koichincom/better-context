@@ -1,0 +1,56 @@
+{
+	"name": "@btca/cli",
+	"author": "Ben Davis",
+	"version": "0.7.0",
+	"description": "CLI tool for asking questions about technologies using btca server",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/davis7dotsh/better-context.git"
+	},
+	"keywords": [
+		"cli",
+		"ai",
+		"docs"
+	],
+	"engines": {
+		"bun": ">=1.1.0"
+	},
+	"bin": {
+		"btca": "bin.js"
+	},
+	"files": [
+		"bin.js",
+		"dist/btca-darwin-arm64",
+		"dist/btca-darwin-x64",
+		"dist/btca-linux-arm64",
+		"dist/btca-linux-x64",
+		"dist/btca-windows-x64.exe"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"check": "tsgo --noEmit",
+		"format": "prettier --write .",
+		"dev": "bun run src/index.ts"
+	},
+	"dependencies": {
+		"@btca/server": "workspace:*",
+		"commander": "^12.1.0",
+		"hono": "^4.7.11"
+	},
+	"devDependencies": {
+		"@opentui/core": "^0.1.65",
+		"@opentui/solid": "^0.1.65",
+		"@shikijs/langs": "^3.20.0",
+		"@shikijs/themes": "^3.20.0",
+		"@types/bun": "latest",
+		"@typescript/native-preview": "^7.0.0-dev.20260109.1",
+		"marked": "^17.0.1",
+		"prettier": "^3.7.4",
+		"shiki": "^3.20.0",
+		"solid-js": "^1.9.10"
+	}
+}
