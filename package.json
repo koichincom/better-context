@@ -27,7 +27,7 @@
 		"server": "bun --watch apps/server/src/index.ts",
 		"cli-legacy": "bun run apps/cli-LEGACY/src/index.ts",
 		"build:all": "turbo build",
-		"build:cli": "turbo build --filter=@btca/cli",
+		"build:cli": "turbo build --filter=btca",
 		"build:web": "turbo build --filter=@btca/web",
 		"check:all": "turbo check",
 		"check:cli": "turbo check --filter=@btca/cli",
