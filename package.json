@@ -25,6 +25,8 @@
 		"web": "turbo dev --filter=@btca/web",
 		"cli": "bun run apps/cli/src/index.ts",
 		"server": "bun --watch apps/server/src/index.ts",
+		"sandbox": "bun run apps/sandbox/src/index.ts",
+		"sandbox:snapshot": "bun run apps/sandbox/src/snapshot.ts",
 		"cli-legacy": "bun run apps/cli-LEGACY/src/index.ts",
 		"build:all": "turbo build",
 		"build:cli": "turbo build --filter=btca",

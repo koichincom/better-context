@@ -24,12 +24,16 @@
 	"scripts": {
 		"check": "tsgo --noEmit",
 		"dev": "bun --watch src/index.ts",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"sandbox": "bun run src/index.ts",
+		"snapshot": "bun run src/snapshot.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
 		"@typescript/native-preview": "^7.0.0-dev.20260109.1",
 		"prettier": "^3.7.4"
 	},
-	"dependencies": {}
+	"dependencies": {
+		"@daytonaio/sdk": "^0.130.0"
+	}
 }
