@@ -1,8 +1,8 @@
 import { createEffect, createSignal, For, Show, type Component, type Setter } from 'solid-js';
 import type { KeyEvent, TextareaRenderable } from '@opentui/core';
-import { colors, getColor } from '../theme';
+import { colors, getColor } from '../theme.ts';
 import { usePaste, useTerminalDimensions } from '@opentui/solid';
-import type { InputState, CancelState, ThreadState } from '../types.ts';
+import type { InputState, CancelState } from '../types.ts';
 
 interface MainInputProps {
 	inputState: InputState;
@@ -14,7 +14,6 @@ interface MainInputProps {
 	focused: boolean;
 	isStreaming: boolean;
 	cancelState: CancelState;
-	currentThread: ThreadState | null;
 }
 
 export const MainInput: Component<MainInputProps> = (props) => {
@@ -40,9 +39,6 @@ export const MainInput: Component<MainInputProps> = (props) => {
 		}
 		if (props.isStreaming) {
 			return 'press esc to cancel';
-		}
-		if (props.currentThread && props.currentThread.resources.length > 0) {
-			return 'ask a follow-up... or @repo to add context';
 		}
 		return '@repo question... or / for commands';
 	};

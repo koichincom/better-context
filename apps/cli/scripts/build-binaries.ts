@@ -1,9 +1,6 @@
 import { $ } from 'bun';
-import { FileSystem } from '@effect/platform';
-import { BunContext, BunRuntime } from '@effect/platform-bun';
-import { Effect } from 'effect';
-import packageJson from '../package.json';
 import solidPlugin from '@opentui/solid/bun-plugin';
+import packageJson from '../package.json';
 
 const VERSION = packageJson.version;
 
@@ -23,44 +20,39 @@ const outputNames: Record<(typeof targets)[number], string> = {
 	'bun-windows-x64': 'btca-windows-x64.exe'
 };
 
-const main = Effect.gen(function* () {
-	const fs = yield* FileSystem.FileSystem;
-
+async function main() {
 	// Install opentui for all platforms
 	const opentuiCoreVersion = packageJson.devDependencies['@opentui/core'];
 	const opentuiSolidVersion = packageJson.devDependencies['@opentui/solid'];
 
 	console.log('Installing opentui for all platforms...');
-	yield* Effect.promise(
-		() => $`bun install --os="*" --cpu="*" @opentui/core@${opentuiCoreVersion}`
-	);
-	yield* Effect.promise(
-		() => $`bun install --os="*" --cpu="*" @opentui/solid@${opentuiSolidVersion}`
-	);
+	await $`bun install --os="*" --cpu="*" @opentui/core@${opentuiCoreVersion}`;
+	await $`bun install --os="*" --cpu="*" @opentui/solid@${opentuiSolidVersion}`;
 	console.log('Done installing opentui for all platforms');
 
-	yield* fs.makeDirectory('dist', { recursive: true });
+	await Bun.file('dist')
+		.exists()
+		.catch(() => false);
+	await $`mkdir -p dist`;
 
 	for (const target of targets) {
 		const outfile = `dist/${outputNames[target]}`;
 		console.log(`Building ${target} -> ${outfile} (v${VERSION})`);
-		const result = yield* Effect.promise(() =>
-			Bun.build({
-				entrypoints: ['src/index.ts'],
-				target: 'bun',
-				plugins: [solidPlugin],
-				define: {
-					__VERSION__: JSON.stringify(VERSION)
-				},
-				compile: {
-					target,
-					outfile,
-					// Disable bunfig.toml autoloading - the solidPlugin already transforms JSX at build time
-					// and we don't want the binary to pick up bunfig.toml from the cwd
-					autoloadBunfig: false
-				}
-			})
-		);
+		const result = await Bun.build({
+			entrypoints: ['src/index.ts'],
+			target: 'bun',
+			plugins: [solidPlugin],
+			define: {
+				__VERSION__: JSON.stringify(VERSION)
+			},
+			compile: {
+				target,
+				outfile,
+				// Disable bunfig.toml autoloading - the solidPlugin already transforms JSX at build time
+				// and we don't want the binary to pick up bunfig.toml from the cwd
+				autoloadBunfig: false
+			}
+		});
 		if (!result.success) {
 			console.error(`Build failed for ${target}:`, result.logs);
 			process.exit(1);
@@ -68,6 +60,9 @@ const main = Effect.gen(function* () {
 	}
 
 	console.log('Done building all targets');
-});
+}
 
-main.pipe(Effect.provide(BunContext.layer), BunRuntime.runMain);
+main().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

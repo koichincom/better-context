@@ -1,369 +1,148 @@
-# btca
+# @btca/cli
 
-A CLI tool for asking questions about technologies using their source code repositories.
+CLI tool for asking questions about technologies using the btca server.
 
 ## Installation
 
+### From npm (Recommended)
+
 ```bash
+bun add -g @btca/cli
+```
+
+### From source
+
+```bash
+git clone https://github.com/davis7dotsh/better-context.git
+cd better-context
 bun install
+bun run --filter=@btca/cli build
 ```
 
 ## Usage
 
+### Interactive TUI (Default)
+
+Launch the interactive terminal UI:
+
 ```bash
-bun run src/index.ts
+btca
 ```
 
-Or after building:
+Use `@mentions` to reference resources:
+
+- Type `@svelte How do I create a store?` to ask about Svelte
+- Use multiple mentions: `@react @typescript How do I type props?`
+
+### One-shot Question
+
+Ask a single question and exit:
 
 ```bash
-btca <command>
-```
-
-## Commands
-
-### `btca`
-
-Show version information.
-
-### `btca ask`
-
-Ask a question about a technology.
-
-```bash
-btca ask -t <tech> -q <question>
-btca ask --tech svelte --question "How do I create a reactive store?"
+btca ask -r svelte -q "How do I create a reactive store?"
 ```
 
 Options:
 
-- `-t, --tech` - The technology/repo to query
-- `-q, --question` - The question to ask
+- `-r, --resource <name...>` - Resources to search (can specify multiple)
+- `-q, --question <text>` - Question to ask (required)
 
-### `btca chat`
-
-Start an interactive TUI chat session.
+Examples:
 
 ```bash
-btca chat -t <tech>
-btca chat --tech nextjs
+# Single resource
+btca ask -r svelte -q "How do signals work?"
+
+# Multiple resources
+btca ask -r react -r typescript -q "How do I type useState?"
+
+# Using @mentions in question
+btca ask -q "@svelte @tailwind How do I style components?"
 ```
 
-Options:
+### OpenCode TUI Session
 
-- `-t, --tech` - The technology/repo to chat about
-
-### `btca serve`
-
-Start an HTTP server to answer questions via API.
+Start an interactive OpenCode session with resource context:
 
 ```bash
-btca serve
-btca serve -p 3000
+btca chat -r svelte -r effect
 ```
-
-Options:
-
-- `-p, --port` - Port to listen on (default: 8080)
-
-Endpoint:
-
-- `POST /question` - Send `{ "tech": "svelte", "question": "..." }` to get answers
-
-### `btca open`
-
-Hold an OpenCode instance in the background for faster subsequent queries.
-
-```bash
-btca open
-```
-
-### `btca config`
-
-Manage CLI configuration. Shows the config file path when run without subcommands.
-
-```bash
-btca config
-```
-
-#### `btca config model`
-
-View or set the model and provider.
-
-```bash
-# View current model/provider
-btca config model
-
-# Set model and provider
-btca config model -p <provider> -m <model>
-btca config model --provider anthropic --model claude-3-opus
-```
-
-Options:
-
-- `-p, --provider` - The provider to use
-- `-m, --model` - The model to use
-
-Both options must be specified together when updating.
-
-#### `btca config repos list`
-
-List all configured repositories.
-
-```bash
-btca config repos list
-```
-
-#### `btca config repos add`
-
-Add a new repository to the configuration.
-
-```bash
-btca config repos add -n <name> -u <url> [-b <branch>] [--notes <notes>]
-btca config repos add --name react --url https://github.com/facebook/react --branch main
-```
-
-Options:
-
-- `-n, --name` - Unique name for the repo (required)
-- `-u, --url` - Git repository URL (required)
-- `-b, --branch` - Branch to use (default: "main")
-- `--notes` - Special instructions for the AI when using this repo
 
 ## Configuration
 
-Configuration is stored at `~/.config/btca/btca.json`. The config file includes:
+btca uses a config file at `~/.config/btca/btca.config.jsonc`. Manage configuration via CLI commands.
 
-- `promptsDirectory` - Directory for system prompts
-- `reposDirectory` - Directory where repos are cloned
-- `port` - Default server port
-- `maxInstances` - Maximum concurrent OpenCode instances
-- `repos` - Array of configured repositories
-- `model` - AI model to use
-- `provider` - AI provider to use
+### Set Model
 
-## Core Primitives
-
-BTCA is built around five core primitives that work together to provide context-aware AI assistance.
-
-### Resource
-
-A **resource** is a source of context that can be searched by an agent. Resources are cached locally and can be one of several types:
-
-| Type    | Description                          | Example                           |
-| ------- | ------------------------------------ | --------------------------------- |
-| `git`   | A git repository cloned locally      | `svelte`, `effect`, `tailwindcss` |
-| `local` | A local directory on your filesystem | `/Users/you/projects/my-app`      |
-
-_Future types: `url` (scraped docs), `npm` (extracted packages)_
-
-Resources are defined in your config and cached to `~/.local/share/btca/resources/`.
-
-### Collection
-
-A **collection** is an assembled group of resources in a single directory that an agent can search. Collections are created on-demand using symlinks to cached resources.
-
-- Collections are **derived** from resource names, not user-defined
-- The collection key is the sorted, `+`-joined resource names: `effect+svelte`
-- Single-resource collections are valid: `svelte`
-- Collections live at `~/.local/share/btca/collections/{key}/`
-
-```
-collections/
-  effect+svelte/
-    effect -> ../../resources/effect
-    svelte -> ../../resources/svelte
+```bash
+btca config model -p opencode -m claude-haiku-4-5
 ```
 
-### Agent
+### List Resources
 
-An **agent** is an OpenCode instance with its working directory set to a collection. The agent can search, read, and analyze all files within the collection.
-
-- Agents are read-only (no write/bash/edit tools)
-- Each agent operates on exactly one collection
-- Multiple agents can run concurrently on different ports
-
-### Thread
-
-A **thread** is a conversation consisting of one or more questions. Threads persist to SQLite and maintain conversational context.
-
-### Question
-
-A **question** is a single exchange within a thread. Each question has:
-
-| Field       | Description                                           |
-| ----------- | ----------------------------------------------------- |
-| `resources` | Resources added **by this question** (not inherited)  |
-| `prompt`    | The user's question text                              |
-| `answer`    | The agent's response                                  |
-| `provider`  | AI provider at ask time                               |
-| `model`     | AI model at ask time                                  |
-| `metadata`  | Files read, searches performed, token usage, duration |
-
-### Config
-
-The **config** stores application settings:
-
-- Resource definitions (git repos, local dirs)
-- Default model and provider
-- Data directory paths
-
-Stored at `~/.config/btca/config.json`.
-
----
-
-## How It All Works Together
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         User asks a question                         │
-│            "how do I use $state in @svelte with @effect?"           │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. Parse resources from @mentions                                   │
-│     → resources for this question: ["svelte", "effect"]             │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  2. Compute full resource list (accumulate from thread history)      │
-│     → previous questions added: []                                   │
-│     → full resources: ["effect", "svelte"]                          │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  3. Ensure collection exists                                         │
-│     → key: "effect+svelte"                                          │
-│     → ensure resources are cached (git clone/pull)                  │
-│     → create collection dir with symlinks                           │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  4. Build context prompt                                             │
-│     → include previous Q&A from thread (as text)                    │
-│     → include collection info                                       │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  5. Spawn agent (OpenCode instance) in collection directory          │
-│     → cwd: ~/.local/share/btca/collections/effect+svelte            │
-│     → agent searches files, reads docs, formulates answer           │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  6. Capture response + metadata                                      │
-│     → stream answer to user                                         │
-│     → record files read, searches, tokens, duration                 │
-└─────────────────────────────────┬───────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  7. Persist question to thread                                       │
-│     → save to SQLite for conversation continuity                    │
-│     → next question inherits resources ["effect", "svelte"]         │
-└─────────────────────────────────────────────────────────────────────┘
+```bash
+btca config resources list
 ```
 
-### Resource Accumulation Example
+### Add Resource
 
-```
-Thread: "Learning Svelte + Effect"
+```bash
+# Add a git repository
+btca config resources add -n effect -t git -u https://github.com/Effect-TS/effect -b main
 
-Q1: "how do I use $state in @svelte?"
-    → resources: ["svelte"]
-    → collection: "svelte"
-    → agent searches svelte docs
+# Add with search path (focus on specific subdirectory)
+btca config resources add -n svelte -t git -u https://github.com/sveltejs/svelte.dev -b main --search-path apps/svelte.dev
 
-Q2: "how can I integrate @effect with this?"
-    → resources: ["effect"]  (only new ones)
-    → inherited: ["svelte"]
-    → full: ["effect", "svelte"]
-    → collection: "effect+svelte"
-    → agent searches both, sees Q1 context
-
-Q3: "show me an example combining both"
-    → resources: []  (none new)
-    → inherited: ["effect", "svelte"]
-    → collection: "effect+svelte"
-    → agent has full context from Q1 + Q2
+# Add a local directory
+btca config resources add -n myproject -t local --path /path/to/project
 ```
 
-### Directory Structure
+### Remove Resource
 
-```
-~/.local/share/btca/
-├── resources/              # Cached resources
-│   ├── svelte/             # Git clone
-│   ├── effect/             # Git clone
-│   └── my-project/         # Symlink to local dir
-├── collections/            # Assembled collections
-│   ├── svelte/
-│   │   └── svelte -> ../resources/svelte
-│   └── effect+svelte/
-│       ├── effect -> ../resources/effect
-│       └── svelte -> ../resources/svelte
-└── btca.db                 # SQLite (threads, questions)
-
-~/.config/btca/
-└── config.json             # User configuration
+```bash
+btca config resources remove -n effect
 ```
 
----
+### Clear Cached Resources
 
-## Future: Cloud Sandboxes
+Clear all locally cloned git repositories:
 
-The architecture is designed to support cloud sandboxes (e.g., Daytona) in the future.
-
-### Session = Sandbox Model
-
-Each thread maps 1:1 to a cloud sandbox:
-
-```
-Thread 1 → Sandbox A
-├── User asks about @svelte     → Clone svelte (slow first time)
-├── User asks follow-up         → Sandbox already has svelte (instant)
-├── User adds @effect           → Clone effect, svelte cached
-├── Sandbox hibernates after inactivity
-
-Thread 1 resumed later:
-├── Wake sandbox A              → Resources still cached
-├── Continue conversation       → Fast
+```bash
+btca clear
 ```
 
-**Benefits:**
+### Server Options
 
-- First question with new resources is slow, but follow-ups are fast
-- Resources accumulate within the sandbox (no re-cloning)
-- Natural mapping: Thread ↔ Sandbox is 1:1
-- Sandbox can hibernate to reduce costs, wake on resume
+```bash
+# Use an existing btca server
+btca --server http://localhost:3000
 
-**Thread schema extension for cloud:**
-
-```typescript
-interface Thread {
-	// ... existing fields
-	sandbox?: {
-		id: string; // Daytona workspace ID
-		status: 'running' | 'hibernated' | 'terminated';
-		cachedResources: string[]; // What's already cloned
-		lastActiveAt: Date;
-	};
-}
+# Specify port for auto-started server
+btca --port 3001
 ```
 
-**Future optimizations:**
+## TUI Commands
 
-- Warm pool of sandboxes with popular resource combinations
-- Route new threads to best-match sandbox
-- Pre-warm based on usage patterns
+In the interactive TUI, use `/` to access commands:
 
-## ideas on how to improve TUI perf
+- `/clear` - Clear chat history
+- `/model` - Select from recommended models
+- `/add` - Add a new resource
 
-- gut the global store. just store the state for each piece where it needs to go, then have it interact with other services with a few simple functions (input should hold all of input, it's triggering too many re-renders)
-- make the db saving logic happen in the background
+## Keyboard Shortcuts
+
+- `Enter` - Send message
+- `Escape` - Cancel streaming response (press twice to confirm)
+- `Ctrl+C` - Clear input or quit
+- `Ctrl+Q` - Quit
+- `Tab` - Autocomplete commands/mentions
+- `Up/Down` - Navigate palettes
+
+## Requirements
+
+- [Bun](https://bun.sh) >= 1.1.0
+- A running btca server (auto-started by default)
+
+## License
+
+MIT

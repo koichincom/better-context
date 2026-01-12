@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js';
-import { colors } from '../theme';
+import { colors } from '../theme.ts';
 import type { CancelState } from '../types.ts';
 import type { ActiveWizard, WizardStep } from './input-section.tsx';
 

@@ -1,0 +1,221 @@
+import { hc } from 'hono/client';
+import type { AppType } from '@btca/server';
+
+export type Client = ReturnType<typeof hc<AppType>>;
+
+/**
+ * Create a typed Hono RPC client for the btca server
+ */
+export function createClient(baseUrl: string): Client {
+	return hc<AppType>(baseUrl);
+}
+
+/**
+ * Get server configuration
+ */
+export async function getConfig(client: Client) {
+	const res = await client.config.$get();
+	if (!res.ok) {
+		throw new Error(`Failed to get config: ${res.status}`);
+	}
+	return res.json();
+}
+
+/**
+ * Get available resources
+ */
+export async function getResources(client: Client) {
+	const res = await client.resources.$get();
+	if (!res.ok) {
+		throw new Error(`Failed to get resources: ${res.status}`);
+	}
+	return res.json();
+}
+
+/**
+ * Ask a question (non-streaming)
+ */
+export async function askQuestion(
+	client: Client,
+	options: {
+		question: string;
+		resources?: string[];
+		quiet?: boolean;
+	}
+) {
+	const res = await client.question.$post({
+		json: {
+			question: options.question,
+			resources: options.resources,
+			quiet: options.quiet
+		}
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to ask question: ${res.status}`);
+	}
+
+	return res.json();
+}
+
+/**
+ * Get OpenCode instance URL for a collection
+ */
+export async function getOpencodeInstance(
+	client: Client,
+	options: {
+		resources?: string[];
+		quiet?: boolean;
+	}
+) {
+	const res = await client.opencode.$post({
+		json: {
+			resources: options.resources,
+			quiet: options.quiet
+		}
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to get opencode instance: ${res.status}`);
+	}
+
+	return res.json();
+}
+
+/**
+ * Ask a question (streaming) - returns the raw Response for SSE parsing
+ */
+export async function askQuestionStream(
+	baseUrl: string,
+	options: {
+		question: string;
+		resources?: string[];
+		quiet?: boolean;
+		signal?: AbortSignal;
+	}
+): Promise<Response> {
+	// Use raw fetch for streaming since Hono client doesn't handle SSE well
+	const res = await fetch(`${baseUrl}/question/stream`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			question: options.question,
+			resources: options.resources,
+			quiet: options.quiet
+		}),
+		signal: options.signal
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to ask question: ${res.status}`);
+	}
+
+	return res;
+}
+
+/**
+ * Update model configuration
+ */
+export async function updateModel(
+	baseUrl: string,
+	provider: string,
+	model: string
+): Promise<{ provider: string; model: string }> {
+	const res = await fetch(`${baseUrl}/config/model`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ provider, model })
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to update model: ${res.status}`);
+	}
+
+	return res.json() as Promise<{ provider: string; model: string }>;
+}
+
+export interface GitResourceInput {
+	type: 'git';
+	name: string;
+	url: string;
+	branch?: string;
+	searchPath?: string;
+	specialNotes?: string;
+}
+
+export interface LocalResourceInput {
+	type: 'local';
+	name: string;
+	path: string;
+	specialNotes?: string;
+}
+
+export type ResourceInput = GitResourceInput | LocalResourceInput;
+
+/**
+ * Add a new resource
+ */
+export async function addResource(
+	baseUrl: string,
+	resource: ResourceInput
+): Promise<ResourceInput> {
+	const res = await fetch(`${baseUrl}/config/resources`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(resource)
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to add resource: ${res.status}`);
+	}
+
+	return res.json() as Promise<ResourceInput>;
+}
+
+/**
+ * Remove a resource
+ */
+export async function removeResource(baseUrl: string, name: string): Promise<void> {
+	const res = await fetch(`${baseUrl}/config/resources`, {
+		method: 'DELETE',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ name })
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to remove resource: ${res.status}`);
+	}
+}
+
+/**
+ * Clear all locally cloned resources
+ */
+export async function clearResources(baseUrl: string): Promise<{ cleared: number }> {
+	const res = await fetch(`${baseUrl}/clear`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		}
+	});
+
+	if (!res.ok) {
+		const error = (await res.json()) as { error?: string };
+		throw new Error(error.error ?? `Failed to clear resources: ${res.status}`);
+	}
+
+	return res.json() as Promise<{ cleared: number }>;
+}

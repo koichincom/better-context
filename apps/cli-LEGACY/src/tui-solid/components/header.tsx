@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js';
-import { colors } from '../theme';
+import { colors } from '../theme.ts';
 import { useConfigContext } from '../context/config-context.tsx';
 
 export const Header: Component = () => {

@@ -1,6 +1,6 @@
 import { For, Show, Switch, Match, createSignal, onCleanup, type Component } from 'solid-js';
 import { useMessagesContext } from '../context/messages-context.tsx';
-import { colors, getColor } from '../theme';
+import { colors, getColor } from '../theme.ts';
 import { MarkdownText } from './markdown-text.tsx';
 import type { BtcaChunk } from '../../core/index.ts';
 import type { AssistantContent } from '../types.ts';
