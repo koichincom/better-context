@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "btca",
-      "version": "1.0.20",
+      "version": "1.0.30",
       "bin": {
         "btca": "bin.js",
       },
@@ -69,7 +69,7 @@
     },
     "apps/server": {
       "name": "btca-server",
-      "version": "1.0.20",
+      "version": "1.0.30",
       "dependencies": {
         "@opencode-ai/sdk": "^1.0.208",
         "hono": "^4.7.11",
