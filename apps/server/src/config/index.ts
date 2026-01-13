@@ -456,33 +456,6 @@ export namespace Config {
 	};
 
 	/**
-	 * Merge two configs together. The override config takes priority.
-	 * - model/provider: override wins
-	 * - resources: merged by name, override resources replace base resources with same name
-	 */
-	const mergeConfigs = (base: StoredConfig, override: StoredConfig): StoredConfig => {
-		// Build a map of resources, starting with base, then overriding with override
-		const resourceMap = new Map<string, ResourceDefinition>();
-
-		// Add base resources first
-		for (const resource of base.resources) {
-			resourceMap.set(resource.name, resource);
-		}
-
-		// Override with project resources (same name = replace)
-		for (const resource of override.resources) {
-			resourceMap.set(resource.name, resource);
-		}
-
-		return {
-			$schema: override.$schema ?? base.$schema,
-			resources: Array.from(resourceMap.values()),
-			model: override.model,
-			provider: override.provider
-		};
-	};
-
-	/**
 	 * Create a config service.
 	 *
 	 * When both global and project configs exist, mutations (add/remove resource, update model)
