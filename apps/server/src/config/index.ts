@@ -455,6 +455,33 @@ export namespace Config {
 		}
 	};
 
+	/**
+	 * Merge two configs together. The override config takes priority.
+	 * - model/provider: override wins
+	 * - resources: merged by name, override resources replace base resources with same name
+	 */
+	const mergeConfigs = (base: StoredConfig, override: StoredConfig): StoredConfig => {
+		// Build a map of resources, starting with base, then overriding with override
+		const resourceMap = new Map<string, ResourceDefinition>();
+
+		// Add base resources first
+		for (const resource of base.resources) {
+			resourceMap.set(resource.name, resource);
+		}
+
+		// Override with project resources (same name = replace)
+		for (const resource of override.resources) {
+			resourceMap.set(resource.name, resource);
+		}
+
+		return {
+			$schema: override.$schema ?? base.$schema,
+			resources: Array.from(resourceMap.values()),
+			model: override.model,
+			provider: override.provider
+		};
+	};
+
 	const makeService = (
 		stored: StoredConfig,
 		resourcesDirectory: string,
@@ -558,47 +585,56 @@ export namespace Config {
 		const cwd = process.cwd();
 		Metrics.info('config.load.start', { cwd });
 
+		const globalConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${GLOBAL_CONFIG_FILENAME}`;
 		const projectConfigPath = `${cwd}/${PROJECT_CONFIG_FILENAME}`;
-		if (await Bun.file(projectConfigPath).exists()) {
-			Metrics.info('config.load.source', { source: 'project', path: projectConfigPath });
-			const stored = await loadConfigFromPath(projectConfigPath);
+
+		// First, load or create the global config
+		let globalConfig: StoredConfig;
+		const globalExists = await Bun.file(globalConfigPath).exists();
+
+		if (!globalExists) {
+			// Check for legacy config to migrate
+			const legacyConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${LEGACY_CONFIG_FILENAME}`;
+			const migrated = await migrateLegacyConfig(legacyConfigPath, globalConfigPath);
+			if (migrated) {
+				Metrics.info('config.load.global', { source: 'migrated', path: globalConfigPath });
+				globalConfig = migrated;
+			} else {
+				Metrics.info('config.load.global', { source: 'default', path: globalConfigPath });
+				globalConfig = await createDefaultConfig(globalConfigPath);
+			}
+		} else {
+			Metrics.info('config.load.global', { source: 'existing', path: globalConfigPath });
+			globalConfig = await loadConfigFromPath(globalConfigPath);
+		}
+
+		// Now check for project config and merge if it exists
+		const projectExists = await Bun.file(projectConfigPath).exists();
+		if (projectExists) {
+			Metrics.info('config.load.project', { source: 'project', path: projectConfigPath });
+			const projectConfig = await loadConfigFromPath(projectConfigPath);
+
+			// Merge: global as base, project as override (project takes priority)
+			const mergedConfig = mergeConfigs(globalConfig, projectConfig);
+			Metrics.info('config.load.merged', {
+				globalResources: globalConfig.resources.length,
+				projectResources: projectConfig.resources.length,
+				mergedResources: mergedConfig.resources.length
+			});
+
+			// Use project paths for data storage when project config exists
 			return makeService(
-				stored,
+				mergedConfig,
 				`${cwd}/${PROJECT_DATA_DIR}/resources`,
 				`${cwd}/${PROJECT_DATA_DIR}/collections`,
 				projectConfigPath
 			);
 		}
 
-		const globalConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${GLOBAL_CONFIG_FILENAME}`;
-		const globalExists = await Bun.file(globalConfigPath).exists();
-
-		// If new config doesn't exist, check for legacy config to migrate
-		if (!globalExists) {
-			const legacyConfigPath = `${expandHome(GLOBAL_CONFIG_DIR)}/${LEGACY_CONFIG_FILENAME}`;
-			const migrated = await migrateLegacyConfig(legacyConfigPath, globalConfigPath);
-			if (migrated) {
-				Metrics.info('config.load.source', { source: 'migrated', path: globalConfigPath });
-				return makeService(
-					migrated,
-					`${expandHome(GLOBAL_DATA_DIR)}/resources`,
-					`${expandHome(GLOBAL_DATA_DIR)}/collections`,
-					globalConfigPath
-				);
-			}
-		}
-
-		Metrics.info('config.load.source', {
-			source: globalExists ? 'global' : 'default',
-			path: globalConfigPath
-		});
-
-		const stored = globalExists
-			? await loadConfigFromPath(globalConfigPath)
-			: await createDefaultConfig(globalConfigPath);
-
+		// No project config, use global only
+		Metrics.info('config.load.source', { source: 'global', path: globalConfigPath });
 		return makeService(
-			stored,
+			globalConfig,
 			`${expandHome(GLOBAL_DATA_DIR)}/resources`,
 			`${expandHome(GLOBAL_DATA_DIR)}/collections`,
 			globalConfigPath

@@ -36,7 +36,7 @@ describe('Config', () => {
 			expect(config.getResource('svelte')).toBeDefined();
 		});
 
-		it('loads project config when btca.config.jsonc exists in cwd', async () => {
+		it('loads project config when btca.config.jsonc exists in cwd (merged with global)', async () => {
 			const projectConfig = {
 				$schema: 'https://btca.dev/btca.schema.json',
 				provider: 'test-provider',
@@ -56,10 +56,14 @@ describe('Config', () => {
 
 			const config = await Config.load();
 
+			// Project provider/model should take priority
 			expect(config.provider).toBe('test-provider');
 			expect(config.model).toBe('test-model');
-			expect(config.resources.length).toBe(1);
-			expect(config.resources[0]?.name).toBe('test-resource');
+			// Resources are merged: 1 project resource + 3 default resources = 4 total
+			expect(config.resources.length).toBe(1 + DEFAULT_RESOURCES.length);
+			expect(config.getResource('test-resource')).toBeDefined();
+			// Default resources should still be present
+			expect(config.getResource('svelte')).toBeDefined();
 		});
 
 		it('handles JSONC with comments', async () => {
@@ -101,7 +105,7 @@ describe('Config', () => {
 			await fs.writeFile(path.join(testDir, 'btca.config.jsonc'), 'not valid json {{{');
 			process.chdir(testDir);
 
-			expect(Config.load()).rejects.toThrow('Failed to parse config JSONC');
+			expect(Config.load()).rejects.toThrow('Failed to parse config file');
 		});
 
 		it('throws ConfigError for invalid schema', async () => {
@@ -114,6 +118,127 @@ describe('Config', () => {
 			process.chdir(testDir);
 
 			expect(Config.load()).rejects.toThrow('Invalid config');
+		});
+
+		it('merges project config with global config (project takes priority)', async () => {
+			// Create global config with some resources
+			const globalConfigDir = path.join(testDir, '.config', 'btca');
+			await fs.mkdir(globalConfigDir, { recursive: true });
+			const globalConfig = {
+				$schema: 'https://btca.dev/btca.schema.json',
+				provider: 'global-provider',
+				model: 'global-model',
+				resources: [
+					{
+						name: 'shared-resource',
+						type: 'git',
+						url: 'https://github.com/global/repo',
+						branch: 'main'
+					},
+					{
+						name: 'global-only-resource',
+						type: 'git',
+						url: 'https://github.com/global/only',
+						branch: 'main'
+					}
+				]
+			};
+			await fs.writeFile(
+				path.join(globalConfigDir, 'btca.config.jsonc'),
+				JSON.stringify(globalConfig)
+			);
+
+			// Create project config that overrides some settings
+			const projectDir = path.join(testDir, 'my-project');
+			await fs.mkdir(projectDir, { recursive: true });
+			const projectConfig = {
+				$schema: 'https://btca.dev/btca.schema.json',
+				provider: 'project-provider',
+				model: 'project-model',
+				resources: [
+					{
+						name: 'shared-resource',
+						type: 'git',
+						url: 'https://github.com/project/repo', // Different URL - should override
+						branch: 'develop'
+					},
+					{
+						name: 'project-only-resource',
+						type: 'git',
+						url: 'https://github.com/project/only',
+						branch: 'main'
+					}
+				]
+			};
+			await fs.writeFile(path.join(projectDir, 'btca.config.jsonc'), JSON.stringify(projectConfig));
+			process.chdir(projectDir);
+
+			const config = await Config.load();
+
+			// Project provider/model should take priority
+			expect(config.provider).toBe('project-provider');
+			expect(config.model).toBe('project-model');
+
+			// Should have 3 resources: shared (from project), global-only, project-only
+			expect(config.resources.length).toBe(3);
+
+			// shared-resource should have project's URL (override)
+			const sharedResource = config.getResource('shared-resource');
+			expect(sharedResource).toBeDefined();
+			expect(sharedResource?.type).toBe('git');
+			if (sharedResource?.type === 'git') {
+				expect(sharedResource.url).toBe('https://github.com/project/repo');
+				expect(sharedResource.branch).toBe('develop');
+			}
+
+			// global-only-resource should still be present
+			const globalOnlyResource = config.getResource('global-only-resource');
+			expect(globalOnlyResource).toBeDefined();
+			if (globalOnlyResource?.type === 'git') {
+				expect(globalOnlyResource.url).toBe('https://github.com/global/only');
+			}
+
+			// project-only-resource should be present
+			const projectOnlyResource = config.getResource('project-only-resource');
+			expect(projectOnlyResource).toBeDefined();
+			if (projectOnlyResource?.type === 'git') {
+				expect(projectOnlyResource.url).toBe('https://github.com/project/only');
+			}
+		});
+
+		it('uses only global config when no project config exists', async () => {
+			// Create global config
+			const globalConfigDir = path.join(testDir, '.config', 'btca');
+			await fs.mkdir(globalConfigDir, { recursive: true });
+			const globalConfig = {
+				$schema: 'https://btca.dev/btca.schema.json',
+				provider: 'global-provider',
+				model: 'global-model',
+				resources: [
+					{
+						name: 'global-resource',
+						type: 'git',
+						url: 'https://github.com/global/repo',
+						branch: 'main'
+					}
+				]
+			};
+			await fs.writeFile(
+				path.join(globalConfigDir, 'btca.config.jsonc'),
+				JSON.stringify(globalConfig)
+			);
+
+			// Create project directory without config
+			const projectDir = path.join(testDir, 'my-project');
+			await fs.mkdir(projectDir, { recursive: true });
+			process.chdir(projectDir);
+
+			const config = await Config.load();
+
+			expect(config.provider).toBe('global-provider');
+			expect(config.model).toBe('global-model');
+			expect(config.resources.length).toBe(1);
+			expect(config.getResource('global-resource')).toBeDefined();
 		});
 	});
 });
