@@ -36,7 +36,6 @@ btca queries local clones of library/framework repositories to answer questions 
 | `-q, --question <text>`    | Yes      | The question to ask                                                          |
 | `-r, --resource <name...>` | No       | Resource(s) to search; repeatable. If omitted, uses all configured resources |
 
-<<<<<<< HEAD
 **Features:**
 
 - Supports `@mentions` in the question: `btca ask -q "@svelte @tailwind How do I style components?"`
@@ -51,36 +50,17 @@ btca queries local clones of library/framework repositories to answer questions 
 
 - `btca chat [--resource <resource>...]`
   - Launch the interactive TUI for multi-turn conversation.
-    > > > > > > > a028dc0 (quality of life fixes from old prs)
 
 ```bash
 # Single resource
 btca ask -r svelte -q "How does the $state rune work?"
 
-<<<<<<< HEAD
 # Multiple resources
 btca ask -r react -r typescript -q "How do I type useState?"
 
 # Using @mentions instead of -r flags
 btca ask -q "@svelte @effect How do I integrate Effect with Svelte?"
 ```
-
-=======
-
-- `btca config model`
-  - Show the current provider/model.
-- `btca config model --provider <provider> --model <model>`
-  - Set provider + model (both required together).
-
-- `btca config resources list`
-  - List configured resources.
-- `btca config resources add --name <name> --type <type> [--url <url>] [--branch <branch>] [--path <path>] [--notes '<specialNotes>'] [--search-path '<path>']`
-  - Add a resource. Type is `git` (default) or `local`.
-  - Git resources require `--url <url>`, optional `--branch <branch>` (default: main).
-  - Local resources require `--path <path>`.
-- `btca config resources remove [--name <name>]`
-  - Remove a resource from the config (with confirmation).
-    > > > > > > > a028dc0 (quality of life fixes from old prs)
 
 ---
 
@@ -92,16 +72,10 @@ List all configured resources. **Run this first** to see what's available.
 btca config resources list
 ```
 
-## <<<<<<< HEAD
-
-=======
-
-- `btca ask --resource svelte --question 'How do runes work in Svelte 5?'`
-  > > > > > > > a028dc0 (quality of life fixes from old prs)
+---
 
 ### `btca config resources add`
 
-<<<<<<< HEAD
 Add a new resource. **Ask the user for missing details** if they don't provide them.
 
 ```bash
@@ -267,8 +241,3 @@ btca config model -p opencode -m claude-haiku-4-5
 # Clear cache
 btca clear
 ```
-
-=======
-
-- `btca ask --resource svelte --resource effect --question 'Compare error handling patterns'`
-  > > > > > > > a028dc0 (quality of life fixes from old prs)
