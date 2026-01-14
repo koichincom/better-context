@@ -12,7 +12,7 @@ let daytonaInstance: Daytona | null = null;
 const BTCA_SNAPSHOT_NAME = 'btca-sandbox';
 
 // Auto-stop interval in minutes (sandbox stops after this period of inactivity)
-const AUTO_STOP_INTERVAL = 60;
+const AUTO_STOP_INTERVAL = 5;
 
 // Server port for btca serve
 const BTCA_SERVER_PORT = 3000;
@@ -99,7 +99,7 @@ async function getSandboxInfo(
 
 	try {
 		const sandbox = await daytona.get(sandboxId);
-		const state = (sandbox as unknown as { instance?: { state?: string } }).instance?.state;
+		const state = sandbox.state;
 
 		if (state === 'started') {
 			const previewInfo = await sandbox.getPreviewLink(BTCA_SERVER_PORT);

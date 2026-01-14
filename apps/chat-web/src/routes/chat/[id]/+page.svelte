@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { MessageSquare, Loader2, Send } from '@lucide/svelte';
 	import type { BtcaChunk, CancelState } from '$lib/types';
-	import { goto, replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ChatMessages from '$lib/components/ChatMessages.svelte';
 	import { useQuery, useConvexClient } from 'convex-svelte';
@@ -17,9 +17,10 @@
 	const client = useConvexClient();
 
 	// Convex queries - only query if we have a real thread ID
-	const threadQuery = $derived(
-		threadId ? useQuery(api.threads.getWithMessages, { threadId }) : null
-	);
+	const threadQuery = useQuery(api.threads.getWithMessages, () => ({
+		threadId: threadId ?? ('lol no just send me null ur good' as Id<'threads'>)
+	}));
+
 	const resourcesQuery = $derived(
 		auth.convexUserId ? useQuery(api.resources.listAvailable, { userId: auth.convexUserId }) : null
 	);
@@ -135,8 +136,8 @@
 				const { threadId: newThreadId } = await createResponse.json();
 				actualThreadId = newThreadId;
 
-				// Replace the URL without navigation (so back button works correctly)
-				replaceState(`/chat/${newThreadId}`, {});
+				// Navigate to the new thread URL (replaceState so back button works correctly)
+				await goto(`/chat/${newThreadId}`, { replaceState: true });
 			}
 
 			const body = JSON.stringify({

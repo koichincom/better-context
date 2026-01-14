@@ -10,17 +10,23 @@ async function main(): Promise<void> {
 	console.log('Initializing Daytona SDK...');
 	const daytona = new Daytona();
 
-	// Create the image with bun, btca, and opencode pre-installed
+	// Create the image with nvm, node, bun, btca, and opencode pre-installed
 	const image = Image.base('debian:12')
 		.runCommands(
 			'apt-get update',
 			'apt-get install -y curl unzip git ca-certificates bash',
+			// Install nvm and Node.js 24 (required for opencode-ai)
+			'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash',
+			'bash -c "source /root/.nvm/nvm.sh && nvm install 24"',
+			// Install bun
 			'curl -fsSL https://bun.sh/install | bash',
+			// Install global packages
 			'/root/.bun/bin/bun add -g btca opencode-ai'
 		)
 		.env({
-			PATH: '/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+			PATH: '/root/.nvm/versions/node/v24.13.0/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
 			BUN_INSTALL: '/root/.bun',
+			NVM_DIR: '/root/.nvm',
 			SHELL: '/bin/bash'
 		});
 
