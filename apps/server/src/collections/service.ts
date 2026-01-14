@@ -97,7 +97,7 @@ export namespace Collections {
 						}
 
 						try {
-							await fs.symlink(resourcePath, linkPath);
+							await fs.symlink(resourcePath, linkPath, 'junction');
 						} catch (cause) {
 							throw new CollectionError({
 								message: `Failed to create symlink for resource "${resource.name}"`,
