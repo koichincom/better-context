@@ -177,6 +177,7 @@ export interface GitResourceInput {
 	url: string;
 	branch?: string;
 	searchPath?: string;
+	searchPaths?: string[];
 	specialNotes?: string;
 }
 

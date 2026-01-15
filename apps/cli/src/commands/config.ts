@@ -20,6 +20,7 @@ interface GitResource {
 	url: string;
 	branch: string;
 	searchPath?: string;
+	searchPaths?: string[];
 	specialNotes?: string;
 }
 
@@ -136,7 +137,11 @@ const resourcesListCommand = new Command('list')
 						console.log(`  ${r.name} (git)`);
 						console.log(`    URL: ${r.url}`);
 						console.log(`    Branch: ${r.branch}`);
-						if (r.searchPath) console.log(`    Search Path: ${r.searchPath}`);
+						if (r.searchPaths && r.searchPaths.length > 0) {
+							console.log(`    Search Paths: ${r.searchPaths.join(', ')}`);
+						} else if (r.searchPath) {
+							console.log(`    Search Path: ${r.searchPath}`);
+						}
 						if (r.specialNotes) console.log(`    Notes: ${r.specialNotes}`);
 					} else {
 						console.log(`  ${r.name} (local)`);
@@ -162,7 +167,7 @@ const resourcesAddCommand = new Command('add')
 	.option('-u, --url <url>', 'Git repository URL (required for git type)')
 	.option('-b, --branch <branch>', 'Git branch (default: main)')
 	.option('--path <path>', 'Local path (required for local type)')
-	.option('--search-path <searchPath>', 'Subdirectory to focus on')
+	.option('--search-path <searchPath...>', 'Subdirectory to focus on (repeatable)')
 	.option('--notes <notes>', 'Special notes for the AI')
 	.action(async (options, command) => {
 		const globalOpts = command.parent?.parent?.parent?.opts() as
@@ -187,12 +192,18 @@ const resourcesAddCommand = new Command('add')
 					process.exit(1);
 				}
 				const inputUrl = options.url as string;
+				const searchPaths = Array.isArray(options.searchPath)
+					? (options.searchPath as string[])
+					: options.searchPath
+						? [options.searchPath as string]
+						: [];
 				const added = await addResource(server.url, {
 					type: 'git',
 					name: options.name as string,
 					url: inputUrl,
 					branch: (options.branch as string) ?? 'main',
-					...(options.searchPath && { searchPath: options.searchPath as string }),
+					...(searchPaths.length === 1 && { searchPath: searchPaths[0] }),
+					...(searchPaths.length > 1 && { searchPaths }),
 					...(options.notes && { specialNotes: options.notes as string })
 				});
 				// Show normalized URL if it differs from input

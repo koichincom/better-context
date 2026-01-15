@@ -1,13 +1,31 @@
 import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { Metrics } from '../../metrics/index.ts';
 import { CommonHints } from '../../errors.ts';
 import { ResourceError } from '../helpers.ts';
+import { GitResourceSchema } from '../schema.ts';
 import type { BtcaFsResource, BtcaGitResourceArgs } from '../types.ts';
 
-const isValidGitUrl = (url: string) => /^https:\/\//.test(url);
-const isValidBranch = (branch: string) => /^[\w\-./]+$/.test(branch);
-const isValidPath = (path: string) => !path.includes('..') && /^[\w\-./]*$/.test(path);
+const validateGitUrl = (url: string): { success: true } | { success: false; error: string } => {
+	const result = GitResourceSchema.shape.url.safeParse(url);
+	if (result.success) return { success: true };
+	return { success: false, error: result.error.errors[0]?.message ?? 'Invalid git URL' };
+};
+
+const validateBranch = (branch: string): { success: true } | { success: false; error: string } => {
+	const result = GitResourceSchema.shape.branch.safeParse(branch);
+	if (result.success) return { success: true };
+	return { success: false, error: result.error.errors[0]?.message ?? 'Invalid branch name' };
+};
+
+const validateSearchPath = (
+	searchPath: string
+): { success: true } | { success: false; error: string } => {
+	const result = GitResourceSchema.shape.searchPath.safeParse(searchPath);
+	if (result.success) return { success: true };
+	return { success: false, error: result.error.errors[0]?.message ?? 'Invalid search path' };
+};
 
 const directoryExists = async (path: string): Promise<boolean> => {
 	try {
@@ -173,33 +191,38 @@ const runGit = async (
 const gitClone = async (args: {
 	repoUrl: string;
 	repoBranch: string;
-	repoSubPath: string;
+	repoSubPaths: readonly string[];
 	localAbsolutePath: string;
 	quiet: boolean;
 }) => {
-	if (!isValidGitUrl(args.repoUrl)) {
+	const urlValidation = validateGitUrl(args.repoUrl);
+	if (!urlValidation.success) {
 		throw new ResourceError({
-			message: 'Invalid git URL format',
-			hint: 'URLs must start with "https://". Example: https://github.com/user/repo',
+			message: urlValidation.error,
+			hint: 'URLs must be valid HTTPS URLs. Example: https://github.com/user/repo',
 			cause: new Error('URL validation failed')
 		});
 	}
-	if (!isValidBranch(args.repoBranch)) {
+	const branchValidation = validateBranch(args.repoBranch);
+	if (!branchValidation.success) {
 		throw new ResourceError({
-			message: `Invalid branch name: "${args.repoBranch}"`,
+			message: branchValidation.error,
 			hint: 'Branch names can only contain letters, numbers, hyphens, underscores, dots, and forward slashes.',
 			cause: new Error('Branch validation failed')
 		});
 	}
-	if (args.repoSubPath && !isValidPath(args.repoSubPath)) {
-		throw new ResourceError({
-			message: `Invalid search path: "${args.repoSubPath}"`,
-			hint: 'Search paths cannot contain ".." (path traversal) and must use only safe characters.',
-			cause: new Error('Path validation failed')
-		});
+	for (const repoSubPath of args.repoSubPaths) {
+		const pathValidation = validateSearchPath(repoSubPath);
+		if (!pathValidation.success) {
+			throw new ResourceError({
+				message: pathValidation.error,
+				hint: 'Search paths cannot contain ".." (path traversal) and must use only safe characters.',
+				cause: new Error('Path validation failed')
+			});
+		}
 	}
 
-	const needsSparseCheckout = args.repoSubPath && args.repoSubPath !== '/';
+	const needsSparseCheckout = args.repoSubPaths.length > 0;
 	const cloneArgs = needsSparseCheckout
 		? [
 				'clone',
@@ -231,15 +254,15 @@ const gitClone = async (args: {
 	}
 
 	if (needsSparseCheckout) {
-		const sparseResult = await runGit(['sparse-checkout', 'set', args.repoSubPath], {
+		const sparseResult = await runGit(['sparse-checkout', 'set', ...args.repoSubPaths], {
 			cwd: args.localAbsolutePath,
 			quiet: args.quiet
 		});
 
 		if (sparseResult.exitCode !== 0) {
 			throw new ResourceError({
-				message: `Failed to set sparse-checkout path: "${args.repoSubPath}"`,
-				hint: 'Verify the search path exists in the repository. Check the repository structure to find the correct path.',
+				message: `Failed to set sparse-checkout path(s): "${args.repoSubPaths.join(', ')}"`,
+				hint: 'Verify the search paths exist in the repository. Check the repository structure to find the correct path.',
 				cause: new Error(
 					`git sparse-checkout failed with exit code ${sparseResult.exitCode}: ${sparseResult.stderr}`
 				)
@@ -263,7 +286,12 @@ const gitClone = async (args: {
 	}
 };
 
-const gitUpdate = async (args: { localAbsolutePath: string; branch: string; quiet: boolean }) => {
+const gitUpdate = async (args: {
+	localAbsolutePath: string;
+	branch: string;
+	repoSubPaths: readonly string[];
+	quiet: boolean;
+}) => {
 	const fetchResult = await runGit(['fetch', '--depth', '1', 'origin', args.branch], {
 		cwd: args.localAbsolutePath,
 		quiet: args.quiet
@@ -299,6 +327,55 @@ const gitUpdate = async (args: { localAbsolutePath: string; branch: string; quie
 			)
 		});
 	}
+
+	if (args.repoSubPaths.length > 0) {
+		const sparseResult = await runGit(['sparse-checkout', 'set', ...args.repoSubPaths], {
+			cwd: args.localAbsolutePath,
+			quiet: args.quiet
+		});
+
+		if (sparseResult.exitCode !== 0) {
+			throw new ResourceError({
+				message: `Failed to set sparse-checkout path(s): "${args.repoSubPaths.join(', ')}"`,
+				hint: 'Verify the search paths exist in the repository. Check the repository structure to find the correct path.',
+				cause: new Error(
+					`git sparse-checkout failed with exit code ${sparseResult.exitCode}: ${sparseResult.stderr}`
+				)
+			});
+		}
+
+		const checkoutResult = await runGit(['checkout'], {
+			cwd: args.localAbsolutePath,
+			quiet: args.quiet
+		});
+
+		if (checkoutResult.exitCode !== 0) {
+			throw new ResourceError({
+				message: 'Failed to checkout repository',
+				hint: CommonHints.CLEAR_CACHE,
+				cause: new Error(
+					`git checkout failed with exit code ${checkoutResult.exitCode}: ${checkoutResult.stderr}`
+				)
+			});
+		}
+	}
+};
+
+const ensureSearchPathsExist = async (
+	localPath: string,
+	repoSubPaths: readonly string[]
+): Promise<void> => {
+	for (const repoSubPath of repoSubPaths) {
+		const subPath = path.join(localPath, repoSubPath);
+		const exists = await directoryExists(subPath);
+		if (!exists) {
+			throw new ResourceError({
+				message: `Search path does not exist: "${repoSubPath}"`,
+				hint: 'Check the repository structure and update the search path in your btca config.',
+				cause: new Error(`Missing search path: ${repoSubPath}`)
+			});
+		}
+	}
 };
 
 const ensureGitResource = async (config: BtcaGitResourceArgs): Promise<string> => {
@@ -313,20 +390,24 @@ const ensureGitResource = async (config: BtcaGitResourceArgs): Promise<string> =
 				Metrics.info('resource.git.update', {
 					name: config.name,
 					branch: config.branch,
-					repoSubPath: config.repoSubPath
+					repoSubPaths: config.repoSubPaths
 				});
 				await gitUpdate({
 					localAbsolutePath: localPath,
 					branch: config.branch,
+					repoSubPaths: config.repoSubPaths,
 					quiet: config.quiet
 				});
+				if (config.repoSubPaths.length > 0) {
+					await ensureSearchPathsExist(localPath, config.repoSubPaths);
+				}
 				return localPath;
 			}
 
 			Metrics.info('resource.git.clone', {
 				name: config.name,
 				branch: config.branch,
-				repoSubPath: config.repoSubPath
+				repoSubPaths: config.repoSubPaths
 			});
 
 			try {
@@ -342,10 +423,13 @@ const ensureGitResource = async (config: BtcaGitResourceArgs): Promise<string> =
 			await gitClone({
 				repoUrl: config.url,
 				repoBranch: config.branch,
-				repoSubPath: config.repoSubPath,
+				repoSubPaths: config.repoSubPaths,
 				localAbsolutePath: localPath,
 				quiet: config.quiet
 			});
+			if (config.repoSubPaths.length > 0) {
+				await ensureSearchPathsExist(localPath, config.repoSubPaths);
+			}
 
 			return localPath;
 		},
@@ -359,7 +443,7 @@ export const loadGitResource = async (config: BtcaGitResourceArgs): Promise<Btca
 		_tag: 'fs-based',
 		name: config.name,
 		type: 'git',
-		repoSubPath: config.repoSubPath,
+		repoSubPaths: config.repoSubPaths,
 		specialAgentInstructions: config.specialAgentInstructions,
 		getAbsoluteDirectoryPath: async () => localPath
 	};

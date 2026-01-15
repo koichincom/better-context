@@ -71,6 +71,13 @@
 					"type": "string",
 					"description": "Subdirectory within the repo to focus searches on"
 				},
+				"searchPaths": {
+					"type": "array",
+					"description": "Multiple subdirectories within the repo to focus searches on",
+					"items": {
+						"type": "string"
+					}
+				},
 				"specialNotes": {
 					"type": "string",
 					"description": "Additional context or notes about this resource for the AI"

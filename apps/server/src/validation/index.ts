@@ -271,6 +271,20 @@ export const validateSearchPath = (searchPath: string | undefined): ValidationRe
 	return ok();
 };
 
+export const validateSearchPaths = (
+	searchPaths: string[] | undefined
+): ValidationResult => {
+	if (!searchPaths) return ok();
+	if (searchPaths.length === 0) return fail('searchPaths must include at least one path');
+
+	for (const searchPath of searchPaths) {
+		const result = validateSearchPath(searchPath);
+		if (!result.valid) return result;
+	}
+
+	return ok();
+};
+
 /**
  * Validate a local file path.
  *
@@ -417,6 +431,7 @@ export interface ValidatedGitResource {
 	url: string;
 	branch: string;
 	searchPath?: string;
+	searchPaths?: string[];
 	specialNotes?: string;
 }
 
@@ -438,6 +453,7 @@ export const validateGitResource = (resource: {
 	url: string;
 	branch: string;
 	searchPath?: string;
+	searchPaths?: string[];
 	specialNotes?: string;
 }): ValidationResultWithValue<ValidatedGitResource> => {
 	const nameResult = validateResourceName(resource.name);
@@ -451,6 +467,8 @@ export const validateGitResource = (resource: {
 
 	const searchPathResult = validateSearchPath(resource.searchPath);
 	if (!searchPathResult.valid) return failWithValue(searchPathResult.error);
+	const searchPathsResult = validateSearchPaths(resource.searchPaths);
+	if (!searchPathsResult.valid) return failWithValue(searchPathsResult.error);
 
 	const notesResult = validateNotes(resource.specialNotes);
 	if (!notesResult.valid) return failWithValue(notesResult.error);
@@ -460,6 +478,7 @@ export const validateGitResource = (resource: {
 		url: urlResult.value, // Use the normalized URL
 		branch: resource.branch,
 		...(resource.searchPath && { searchPath: resource.searchPath }),
+		...(resource.searchPaths && { searchPaths: resource.searchPaths }),
 		...(resource.specialNotes && { specialNotes: resource.specialNotes })
 	});
 };

@@ -113,7 +113,13 @@ const SearchPathSchema = z
 	})
 	.refine((path) => !path.startsWith('/') && !path.match(/^[a-zA-Z]:\\/), {
 		message: 'Search path must not be an absolute path'
-	})
+	});
+
+const OptionalSearchPathSchema = SearchPathSchema.optional();
+
+const SearchPathsSchema = z
+	.array(SearchPathSchema)
+	.refine((paths) => paths.length > 0, { message: 'searchPaths must include at least one path' })
 	.optional();
 
 /**
@@ -151,7 +157,8 @@ export const GitResourceSchema = z.object({
 	name: ResourceNameSchema,
 	url: GitUrlSchema,
 	branch: BranchNameSchema,
-	searchPath: SearchPathSchema,
+	searchPath: OptionalSearchPathSchema,
+	searchPaths: SearchPathsSchema,
 	specialNotes: SpecialNotesSchema
 });
 

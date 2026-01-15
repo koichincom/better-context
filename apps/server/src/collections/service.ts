@@ -18,11 +18,14 @@ export namespace Collections {
 	};
 
 	const createCollectionInstructionBlock = (resource: BtcaFsResource): string => {
+		const focusLines = resource.repoSubPaths.map(
+			(subPath) => `Focus: ./${resource.name}/${subPath}`
+		);
 		const lines = [
 			`## Resource: ${resource.name}`,
 			FS_RESOURCE_SYSTEM_NOTE,
 			`Path: ./${resource.name}`,
-			resource.repoSubPath ? `Focus: ./${resource.name}/${resource.repoSubPath}` : '',
+			...focusLines,
 			resource.specialAgentInstructions ? `Notes: ${resource.specialAgentInstructions}` : ''
 		].filter(Boolean);
 

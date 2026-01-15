@@ -20,6 +20,14 @@ export namespace Resources {
 		) => Promise<BtcaFsResource>;
 	};
 
+	const normalizeSearchPaths = (definition: GitResource): string[] => {
+		const paths = [
+			...(definition.searchPaths ?? []),
+			...(definition.searchPath ? [definition.searchPath] : [])
+		];
+		return paths.filter((path) => path.trim().length > 0);
+	};
+
 	const definitionToGitArgs = (
 		definition: GitResource,
 		resourcesDirectory: string,
@@ -29,7 +37,7 @@ export namespace Resources {
 		name: definition.name,
 		url: definition.url,
 		branch: definition.branch,
-		repoSubPath: definition.searchPath ?? '',
+		repoSubPaths: normalizeSearchPaths(definition),
 		resourcesDirectoryPath: resourcesDirectory,
 		specialAgentInstructions: definition.specialNotes ?? '',
 		quiet
@@ -46,7 +54,7 @@ export namespace Resources {
 		_tag: 'fs-based',
 		name: args.name,
 		type: 'local',
-		repoSubPath: '',
+		repoSubPaths: [],
 		specialAgentInstructions: args.specialAgentInstructions,
 		getAbsoluteDirectoryPath: async () => args.path
 	});

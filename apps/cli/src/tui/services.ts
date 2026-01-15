@@ -45,7 +45,8 @@ export const services = {
 				url: r.url ?? '',
 				branch: r.branch ?? 'main',
 				specialNotes: r.specialNotes ?? undefined,
-				searchPath: r.searchPath ?? undefined
+				searchPath: r.searchPath ?? undefined,
+				searchPaths: r.searchPaths ?? undefined
 			}));
 	},
 

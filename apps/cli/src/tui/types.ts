@@ -17,6 +17,7 @@ export interface Repo {
 	branch: string;
 	specialNotes?: string | undefined;
 	searchPath?: string | undefined;
+	searchPaths?: string[] | undefined;
 }
 
 export type InputState = (
