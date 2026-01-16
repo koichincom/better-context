@@ -16,9 +16,7 @@
 			<CheckCircle2 size={24} />
 		</div>
 		<h1 class="text-2xl font-semibold">You're subscribed</h1>
-		<p class="bc-muted text-sm">
-			Checkout complete. Your plan is now active and ready to use.
-		</p>
+		<p class="bc-muted text-sm">Checkout complete. Your plan is now active and ready to use.</p>
 		<div class="flex gap-2">
 			<a href="/settings/usage" class="bc-btn bc-btn-primary text-sm">View usage</a>
 			<a href="/chat/new" class="bc-btn text-sm">Start chatting</a>

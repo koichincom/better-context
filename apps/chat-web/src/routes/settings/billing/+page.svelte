@@ -140,12 +140,7 @@
 						<h3 class="font-medium">Manage subscription</h3>
 						<p class="bc-muted text-xs">Update payment method, cancel, or view invoices.</p>
 					</div>
-					<button
-						type="button"
-						class="bc-btn"
-						onclick={handleManage}
-						disabled={isRedirecting}
-					>
+					<button type="button" class="bc-btn" onclick={handleManage} disabled={isRedirecting}>
 						{#if isRedirecting}
 							<Loader2 size={16} class="animate-spin" />
 							Opening...

@@ -120,10 +120,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	});
 
 	if (!usageCheck.ok) {
-		throw error(
-			402,
-			`Monthly usage limit reached. Contact ${SUPPORT_URL} to raise limits.`
-		);
+		throw error(402, `Monthly usage limit reached. Contact ${SUPPORT_URL} to raise limits.`);
 	}
 
 	if (updatedResources.length > 0) {

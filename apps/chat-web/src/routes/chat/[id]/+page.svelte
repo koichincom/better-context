@@ -514,14 +514,17 @@
 			</div>
 
 			{#if !billingStore.isSubscribed}
-				<div class="bc-card mt-3 border-[hsl(var(--bc-warning))] bg-[hsl(var(--bc-surface-2))] p-3 text-xs">
+				<div
+					class="bc-card mt-3 border-[hsl(var(--bc-warning))] bg-[hsl(var(--bc-surface-2))] p-3 text-xs"
+				>
 					Subscription required to use chat. <a href="/pricing">See pricing</a>.
 				</div>
 			{:else if billingStore.isOverLimit}
-				<div class="bc-card mt-3 border-[hsl(var(--bc-error))] bg-[hsl(var(--bc-surface-2))] p-3 text-xs">
+				<div
+					class="bc-card mt-3 border-[hsl(var(--bc-error))] bg-[hsl(var(--bc-surface-2))] p-3 text-xs"
+				>
 					You've hit your monthly usage limits. Contact
-					<a href={SUPPORT_URL} target="_blank" rel="noreferrer">{SUPPORT_URL}</a> to raise
-					them.
+					<a href={SUPPORT_URL} target="_blank" rel="noreferrer">{SUPPORT_URL}</a> to raise them.
 				</div>
 			{/if}
 

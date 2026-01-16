@@ -127,13 +127,9 @@
 
 			<div class="flex items-center gap-2">
 				{#if billingStore.isSubscribed}
-					<a href="/settings/usage" class="bc-chip hidden sm:inline-flex">
-						Usage
-					</a>
+					<a href="/settings/usage" class="bc-chip hidden sm:inline-flex"> Usage </a>
 				{:else}
-					<a href="/pricing" class="bc-chip hidden sm:inline-flex">
-						Pricing
-					</a>
+					<a href="/pricing" class="bc-chip hidden sm:inline-flex"> Pricing </a>
 				{/if}
 				<a
 					class="bc-chip"
@@ -222,14 +218,14 @@
 										<CreditCard size={16} />
 										Billing
 									</a>
-								<a
-									href="/settings/api-keys"
-									class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-[hsl(var(--bc-bg-muted))]"
-									onclick={() => (showUserMenu = false)}
-								>
-									<Key size={16} />
-									MCP
-								</a>
+									<a
+										href="/settings/api-keys"
+										class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-[hsl(var(--bc-bg-muted))]"
+										onclick={() => (showUserMenu = false)}
+									>
+										<Key size={16} />
+										MCP
+									</a>
 									<a
 										href="/settings/resources"
 										class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-[hsl(var(--bc-bg-muted))]"

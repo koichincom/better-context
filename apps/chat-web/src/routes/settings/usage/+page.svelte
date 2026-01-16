@@ -84,8 +84,7 @@
 			{#if billingStore.isOverLimit}
 				<div class="bc-card border-[hsl(var(--bc-error))] p-4 text-sm">
 					You've hit your monthly usage limits. Contact
-					<a href={SUPPORT_URL} target="_blank" rel="noreferrer">{SUPPORT_URL}</a> to raise
-					them.
+					<a href={SUPPORT_URL} target="_blank" rel="noreferrer">{SUPPORT_URL}</a> to raise them.
 				</div>
 			{/if}
 		{/if}

@@ -40,7 +40,9 @@
 <div class="flex flex-1 overflow-hidden">
 	<div class="bc-container flex w-full flex-col gap-10 overflow-y-auto py-10">
 		<section class="bc-card bc-reveal relative overflow-hidden p-10" style="--delay: 40ms">
-			<div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,116,51,0.18),_transparent_55%)]"></div>
+			<div
+				class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,116,51,0.18),_transparent_55%)]"
+			></div>
 			<div class="relative z-10 flex flex-col gap-6">
 				<div class="flex items-center gap-3">
 					<div class="bc-logoMark">
@@ -51,8 +53,8 @@
 				<div class="max-w-2xl">
 					<h1 class="text-4xl font-semibold tracking-tight">One plan. Built to stay fast.</h1>
 					<p class="bc-muted mt-3 text-base">
-						Ship with Haiku 4.5, fresh sandboxes, and predictable usage budgets. Everything you
-						need to keep btca reliable.
+						Ship with Haiku 4.5, fresh sandboxes, and predictable usage budgets. Everything you need
+						to keep btca reliable.
 					</p>
 				</div>
 			</div>
@@ -69,7 +71,9 @@
 						</li>
 					{/each}
 				</ul>
-				<div class="bc-card mt-6 border-[hsl(var(--bc-border))] bg-[hsl(var(--bc-surface-2))] p-4 text-xs">
+				<div
+					class="bc-card mt-6 border-[hsl(var(--bc-border))] bg-[hsl(var(--bc-surface-2))] p-4 text-xs"
+				>
 					Usage is enforced monthly across tokens in/out and sandbox hours. You'll only see
 					percentages, never raw counts.
 				</div>
@@ -96,9 +100,7 @@
 					</div>
 					<div class="flex justify-between">
 						<span class="bc-muted">Support</span>
-						<a href={SUPPORT_URL} target="_blank" rel="noreferrer" class="underline">
-							@davis7
-						</a>
+						<a href={SUPPORT_URL} target="_blank" rel="noreferrer" class="underline"> @davis7 </a>
 					</div>
 				</div>
 
