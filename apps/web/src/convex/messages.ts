@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+
+import { internal } from './_generated/api';
 import { mutation, query } from './_generated/server';
 
 // BtcaChunk validator (same as in schema)
@@ -45,6 +47,10 @@ export const addUserMessage = mutation({
 		resources: v.array(v.string())
 	},
 	handler: async (ctx, args) => {
+		// Check if thread needs a title generated (first message)
+		const thread = await ctx.db.get(args.threadId);
+		const shouldGenerateTitle = thread && !thread.title;
+
 		// Add the message
 		const messageId = await ctx.db.insert('messages', {
 			threadId: args.threadId,
@@ -73,6 +79,14 @@ export const addUserMessage = mutation({
 
 		// Touch the thread
 		await ctx.db.patch(args.threadId, { lastActivityAt: Date.now() });
+
+		// Schedule title generation for first message
+		if (shouldGenerateTitle) {
+			await ctx.scheduler.runAfter(0, internal.threadTitle.generateAndUpdateTitle, {
+				threadId: args.threadId,
+				firstMessage: args.content
+			});
+		}
 
 		return messageId;
 	}

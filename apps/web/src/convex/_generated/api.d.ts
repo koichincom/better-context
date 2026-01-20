@@ -26,6 +26,7 @@ import type * as scheduled_versionCheck from "../scheduled/versionCheck.js";
 import type * as seed from "../seed.js";
 import type * as streamActions from "../streamActions.js";
 import type * as streamSessions from "../streamSessions.js";
+import type * as threadTitle from "../threadTitle.js";
 import type * as threads from "../threads.js";
 import type * as usage from "../usage.js";
 import type * as users from "../users.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   streamActions: typeof streamActions;
   streamSessions: typeof streamSessions;
+  threadTitle: typeof threadTitle;
   threads: typeof threads;
   usage: typeof usage;
   users: typeof users;

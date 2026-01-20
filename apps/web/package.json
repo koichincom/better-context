@@ -34,6 +34,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
+		"@ai-sdk/openai-compatible": "^2.0.13",
 		"@btca/shared": "workspace:*",
 		"@clerk/clerk-js": "^5.120.0",
 		"@clerk/types": "^4.101.11",
@@ -44,6 +45,7 @@
 		"@tmcp/adapter-zod": "^0.1.7",
 		"@tmcp/transport-http": "^0.8.3",
 		"@upstash/redis": "^1.36.1",
+		"ai": "^6.0.42",
 		"autumn-js": "^0.1.69",
 		"convex": "^1.31.5",
 		"convex-svelte": "^0.0.12",

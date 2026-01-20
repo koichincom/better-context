@@ -139,3 +139,13 @@ export const clearMessages = mutation({
 		}
 	}
 });
+
+export const updateTitle = mutation({
+	args: {
+		threadId: v.id('threads'),
+		title: v.string()
+	},
+	handler: async (ctx, args) => {
+		await ctx.db.patch(args.threadId, { title: args.title });
+	}
+});
