@@ -33,7 +33,7 @@
 	});
 
 	const resourcesQuery = $derived(
-		auth.instanceId ? useQuery(api.resources.listAvailable, { instanceId: auth.instanceId }) : null
+		auth.instanceId ? useQuery(api.resources.listUserResources, { instanceId: auth.instanceId }) : null
 	);
 
 	// UI state
@@ -58,10 +58,7 @@
 	const thread = $derived(threadQuery?.data);
 	const messages = $derived(thread?.messages ?? []);
 	const threadResources = $derived(thread?.threadResources ?? []);
-	const availableResources = $derived([
-		...(resourcesQuery?.data?.global ?? []),
-		...(resourcesQuery?.data?.custom ?? [])
-	]);
+	const availableResources = $derived(resourcesQuery?.data ?? []);
 	const hasUsableInstance = $derived.by(() => {
 		if (instanceStore.isLoading) return false;
 		if (!instanceStore.instance) return false;

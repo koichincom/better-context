@@ -171,25 +171,27 @@
 <div class="instance-status relative">
 	<button
 		type="button"
-		class="bc-card flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+		class="bc-card flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left"
 		onclick={() => (isExpanded = !isExpanded)}
 	>
-		<div class="flex items-center gap-2">
-			<div class="bc-logoMark h-8 w-8">
-				<Server size={14} />
+		<div class="flex min-w-0 items-center gap-2">
+			<div class="bc-logoMark h-6 w-6 shrink-0">
+				<Server size={12} />
 			</div>
-			<div>
-				<div class="text-sm font-semibold">Instance</div>
-				<div class="bc-muted text-[11px]">Dedicated runtime</div>
+			<div class="min-w-0">
+				<div class="text-xs font-semibold">Instance</div>
+				<div class="bc-muted text-[9px]">Dedicated runtime</div>
 			</div>
 		</div>
-		<div class="flex items-center gap-2">
-			<span class={stateBadgeClass}>
-				<StateIcon size={12} class={stateInfo.spin ? 'animate-spin' : ''} />
+		<div class="flex shrink-0 items-center gap-1.5">
+			<span class="{stateBadgeClass} text-[10px] px-1.5 py-0.5">
+				<StateIcon size={10} class={stateInfo.spin ? 'animate-spin' : ''} />
 				{stateInfo.label}
 			</span>
 			{#if instanceStore.updateAvailable}
-				<span class="bc-badge bc-badge-warning" title={updateSummary}>Update</span>
+				<span class="bc-badge bc-badge-warning text-[10px] px-1.5 py-0.5" title={updateSummary}
+					>Update</span
+				>
 			{/if}
 		</div>
 	</button>

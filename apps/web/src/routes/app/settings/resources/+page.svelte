@@ -1,15 +1,15 @@
 <script lang="ts">
+	import { GLOBAL_RESOURCES, type GlobalResource } from '@btca/shared';
 	import { Loader2, Plus, Trash2, Globe, User, ExternalLink, Link, Check, X } from '@lucide/svelte';
-	import { goto } from '$app/navigation';
 	import { useQuery, useConvexClient } from 'convex-svelte';
-	import { api } from '../../../../convex/_generated/api';
+	import { goto } from '$app/navigation';
+	import ResourceLogo from '$lib/components/ResourceLogo.svelte';
 	import { getAuthState } from '$lib/stores/auth.svelte';
+	import { api } from '../../../../convex/_generated/api';
 
 	const auth = getAuthState();
 	const client = useConvexClient();
 
-	// Convex queries
-	const globalResourcesQuery = $derived(useQuery(api.resources.listGlobal, {}));
 	const userResourcesQuery = $derived(
 		auth.instanceId
 			? useQuery(api.resources.listUserResources, { instanceId: auth.instanceId })
@@ -31,6 +31,11 @@
 	let formSpecialNotes = $state('');
 	let isSubmitting = $state(false);
 	let formError = $state<string | null>(null);
+	let addingGlobal = $state<string | null>(null);
+	let globalAddError = $state<string | null>(null);
+
+	const userResourceNames = $derived(new Set((userResourcesQuery?.data ?? []).map((r) => r.name)));
+
 
 	/**
 	 * Parse a git URL and extract repo info
@@ -193,10 +198,31 @@
 			console.error('Failed to remove resource:', error);
 		}
 	}
+
+	async function handleAddGlobalResource(resource: GlobalResource) {
+		if (!auth.instanceId) return;
+		if (userResourceNames.has(resource.name)) return;
+		globalAddError = null;
+		addingGlobal = resource.name;
+		try {
+			await client.mutation(api.resources.addCustomResource, {
+				instanceId: auth.instanceId,
+				name: resource.name,
+				url: resource.url,
+				branch: resource.branch,
+				searchPath: resource.searchPath ?? resource.searchPaths?.[0],
+				specialNotes: resource.specialNotes
+			});
+		} catch (error) {
+			globalAddError = error instanceof Error ? error.message : 'Failed to add resource';
+		} finally {
+			addingGlobal = null;
+		}
+	}
 </script>
 
 <div class="flex flex-1 overflow-hidden">
-	<div class="mx-auto flex w-full max-w-3xl flex-col gap-8 overflow-y-auto p-8">
+	<div class="mx-auto flex w-full max-w-5xl flex-col gap-8 overflow-y-auto p-8">
 		<!-- Header -->
 		<div>
 			<h1 class="text-2xl font-semibold">Resources</h1>
@@ -204,57 +230,6 @@
 				Manage your available documentation resources. Use @mentions in chat to query them.
 			</p>
 		</div>
-
-		<!-- Global Resources -->
-		<section>
-			<div class="mb-4 flex items-center gap-2">
-				<Globe size={18} />
-				<h2 class="text-lg font-medium">Global Catalog</h2>
-			</div>
-			<p class="bc-muted mb-4 text-sm">These resources are available to everyone.</p>
-
-			{#if globalResourcesQuery?.isLoading}
-				<div class="flex items-center justify-center py-8">
-					<Loader2 size={24} class="animate-spin" />
-				</div>
-			{:else if globalResourcesQuery?.data && globalResourcesQuery.data.length > 0}
-				<div class="grid gap-3">
-					{#each globalResourcesQuery.data as resource (resource._id)}
-						<div class="bc-card flex items-start gap-4 p-4">
-							<div class="flex-1">
-								<div class="flex items-center gap-2">
-									<span class="font-medium">@{resource.name}</span>
-									<span class="bc-badge">{resource.displayName}</span>
-								</div>
-								<div class="bc-muted mt-1 text-xs">
-									{resource.url}
-									{#if resource.searchPath}
-										<span class="mx-1">·</span>
-										{resource.searchPath}
-									{/if}
-								</div>
-								{#if resource.specialNotes}
-									<div class="bc-muted mt-2 text-xs italic">{resource.specialNotes}</div>
-								{/if}
-							</div>
-							<a
-								href={resource.url}
-								target="_blank"
-								rel="noreferrer"
-								class="bc-chip shrink-0 p-2"
-								title="Open repository"
-							>
-								<ExternalLink size={14} />
-							</a>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<div class="bc-card py-8 text-center">
-					<p class="bc-muted text-sm">No global resources available</p>
-				</div>
-			{/if}
-		</section>
 
 		<!-- User Resources -->
 		<section>
@@ -562,6 +537,54 @@
 						<Plus size={16} />
 						Add Your First Resource
 					</button>
+				</div>
+			{/if}
+		</section>
+
+		<section>
+			<div class="mb-4 flex items-center gap-2">
+				<Globe size={18} />
+				<h2 class="text-lg font-medium">Global Catalog</h2>
+			</div>
+			<p class="bc-muted mb-4 text-sm">Click a resource to add it to your instance.</p>
+
+			{#if globalAddError}
+				<div class="mb-4 rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+					{globalAddError}
+				</div>
+			{/if}
+
+			{#if GLOBAL_RESOURCES.length > 0}
+				<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					{#each GLOBAL_RESOURCES as resource (resource.name)}
+						<button
+							type="button"
+							class="bc-card bc-ring bc-cardHover flex flex-col items-center gap-3 p-4 text-left"
+							title={userResourceNames.has(resource.name) ? 'Already added' : 'Add resource'}
+							onclick={() => handleAddGlobalResource(resource)}
+							disabled={userResourceNames.has(resource.name) || addingGlobal === resource.name}
+						>
+							<ResourceLogo
+								size={44}
+								className="text-[hsl(var(--bc-accent))]"
+								logoKey={resource.logoKey}
+							/>
+							<div class="flex items-center gap-2">
+								<span class="font-medium">@{resource.name}</span>
+								{#if addingGlobal === resource.name}
+									<Loader2 size={14} class="animate-spin" />
+								{:else if userResourceNames.has(resource.name)}
+									<Check size={14} />
+								{:else}
+									<Plus size={14} />
+								{/if}
+							</div>
+						</button>
+					{/each}
+				</div>
+			{:else}
+				<div class="bc-card py-8 text-center">
+					<p class="bc-muted text-sm">No global resources available</p>
 				</div>
 			{/if}
 		</section>

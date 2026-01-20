@@ -14,7 +14,8 @@ export function initAnalytics(): void {
 	}
 
 	posthog.init(posthogId, {
-		api_host: 'https://us.i.posthog.com',
+		api_host: '/ingest',
+		ui_host: 'https://us.i.posthog.com',
 		capture_pageview: true,
 		capture_pageleave: true,
 		persistence: 'localStorage'

@@ -40,7 +40,7 @@
 </script>
 
 <div class="flex flex-1 overflow-hidden">
-	<div class="mx-auto flex w-full max-w-3xl flex-col gap-8 overflow-y-auto p-8">
+	<div class="mx-auto flex w-full max-w-5xl flex-col gap-8 overflow-y-auto p-8">
 		<div>
 			<h1 class="text-2xl font-semibold">Usage</h1>
 			<p class="bc-muted mt-1 text-sm">Monthly usage resets automatically.</p>

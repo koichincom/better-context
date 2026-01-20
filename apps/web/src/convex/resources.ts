@@ -1,5 +1,6 @@
-import { mutation, query } from './_generated/server';
+import { GLOBAL_RESOURCES } from '@btca/shared';
 import { v } from 'convex/values';
+import { mutation, query } from './_generated/server';
 
 import { internal } from './_generated/api';
 import { AnalyticsEvents } from './analyticsEvents';
@@ -7,8 +8,8 @@ import { AnalyticsEvents } from './analyticsEvents';
 export const listGlobal = query({
 	args: {},
 	handler: async (ctx) => {
-		const resources = await ctx.db.query('globalResources').collect();
-		return resources.filter((r) => r.isActive);
+		void ctx;
+		return GLOBAL_RESOURCES;
 	}
 });
 
@@ -25,24 +26,21 @@ export const listUserResources = query({
 export const listAvailable = query({
 	args: { instanceId: v.id('instances') },
 	handler: async (ctx, args) => {
-		const globalResources = await ctx.db.query('globalResources').collect();
 		const userResources = await ctx.db
 			.query('userResources')
 			.withIndex('by_instance', (q) => q.eq('instanceId', args.instanceId))
 			.collect();
 
-		const global = globalResources
-			.filter((r) => r.isActive)
-			.map((r) => ({
-				name: r.name,
-				displayName: r.displayName,
-				type: r.type,
-				url: r.url,
-				branch: r.branch,
-				searchPath: r.searchPath,
-				specialNotes: r.specialNotes,
-				isGlobal: true as const
-			}));
+		const global = GLOBAL_RESOURCES.map((resource) => ({
+			name: resource.name,
+			displayName: resource.displayName,
+			type: resource.type,
+			url: resource.url,
+			branch: resource.branch,
+			searchPath: resource.searchPath ?? resource.searchPaths?.[0],
+			specialNotes: resource.specialNotes,
+			isGlobal: true as const
+		}));
 
 		const custom = userResources.map((r) => ({
 			name: r.name,

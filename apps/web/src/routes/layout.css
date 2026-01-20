@@ -776,7 +776,7 @@
 		--tw-prose-td-borders: hsl(var(--bc-border));
 
 		color: hsl(var(--bc-fg));
-		font-size: 10px;
+		font-size: 13px;
 		line-height: 1.8;
 	}
 
@@ -855,11 +855,13 @@
 	}
 
 	/* Shiki code blocks */
+	.prose pre.shiki,
+	.prose pre.shiki code,
 	pre.shiki,
 	pre.shiki code {
 		font-family: var(--font-family-geist-mono);
-		font-size: 14px;
-		line-height: 1.4;
+		font-size: 13px !important;
+		line-height: 1.6;
 	}
 
 	pre.shiki {
@@ -887,7 +889,7 @@
 		border: 1px solid hsl(var(--bc-border));
 		background: hsl(var(--bc-surface));
 		overflow-x: auto;
-		font-size: 13px;
+		font-size: 13px !important;
 		line-height: 1.6;
 		margin: 12px 0;
 	}
