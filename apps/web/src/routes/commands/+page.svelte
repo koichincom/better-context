@@ -1,7 +1,7 @@
 <script lang="ts">
 	import CopyButton from '$lib/CopyButton.svelte';
 	import { getShikiStore } from '$lib/stores/ShikiStore.svelte';
-	import { getThemeStore } from '$lib/stores/ThemeStore.svelte';
+	import { getThemeStore } from '$lib/stores/theme.svelte';
 
 	const commands = [
 		{
